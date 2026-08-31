@@ -55,7 +55,8 @@ def plot_st_dim(dim: int):
             sizes, _, timings = params
             if len(sizes):
                 sizes = [size ** dim for size in sizes]
-                timings = [1000 * dt / size / dim for dt, size in zip(timings, sizes)]
+                # size is already the total gridpoint count; dt is us, so 1e3 gives ns
+                timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
                 plt.loglog(sizes, timings, label=impl, linewidth=3)
 
         plt.title(f"{dim}D C2C on {cpu_data[arch]} (single-threaded)", fontdict=mainfont)
@@ -78,7 +79,8 @@ def plot_mt_dim(dim: int):
             sizes, _, timings = params
             if len(sizes):
                 sizes = [size ** dim for size in sizes]
-                timings = [1000 * dt / size / dim for dt, size in zip(timings, sizes)]
+                # size is already the total gridpoint count; dt is us, so 1e3 gives ns
+                timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
                 plt.loglog(sizes, timings, label=impl, linewidth=3)
         plt.title(f"{dim}D C2C on {cpu_data[arch]} (multi-threaded)", fontdict=mainfont)
         plt.xlabel("Gridpoints", fontdict=mainfont)
