@@ -4,10 +4,10 @@
 
 #include <benchmark/benchmark.h>
 
-#ifdef FFT_BENCH_OMP
-#ifndef FFT_BENCH_DUCC  // we don't need OpenMP for ducc, but ducc respects OMP_NUM_THREADS
+// Only the fftw-API backends call an OpenMP routine. ducc and admiral read the
+// thread count themselves, and their targets link no OpenMP runtime.
+#if defined(FFT_BENCH_OMP) && (defined(FFT_BENCH_MKL) || defined(FFT_BENCH_FFTW3))
 #include <omp.h>
-#endif
 #endif
 
 #ifdef FFT_BENCH_MKL
@@ -34,6 +34,10 @@ extern "C" {
 #include <ducc0/infra/mav.cc>
 #include <ducc0/infra/threading.cc>
 #include <ducc0/infra/string_utils.cc>
+#elif FFT_BENCH_ADMIRAL
+#include <array>
+
+#include <admiral/admiral.hpp>
 #endif
 
 void initialize_arrays(int N, double *in, double *out) {
@@ -141,13 +145,34 @@ static void run_fft(benchmark::State &state) {
     ducc0::vfmav<std::complex<double>> out(vout.data(), shape);
 
 #ifdef FFT_BENCH_OMP
-    size_t n_threads = ducc0::max_threads();
+    size_t n_threads = ducc0::detail_threading::ducc0_default_num_threads();
 #else
     size_t n_threads = 1;
 #endif
 
     for (auto _ : state)
         ducc0::c2c(in, out, axes, true, 1., n_threads);
+}
+#elif defined(FFT_BENCH_ADMIRAL)
+template <int N_per_dim, int dim>
+static void run_fft(benchmark::State &state) {
+    constexpr std::size_t N = std::pow(N_per_dim, dim);
+    std::vector<std::complex<double>> vin(N), vout(N);
+    initialize_arrays(N, (double *)vin.data(), (double *)vout.data());
+    std::array<std::size_t, dim> shape;
+    shape.fill(N_per_dim);
+
+#ifdef FFT_BENCH_OMP
+    // admiral has a size-aware thread heuristic; the libraries without one get
+    // their thread count forced from the environment instead
+    constexpr std::size_t n_threads = 0;  // 0 = auto
+#else
+    constexpr std::size_t n_threads = 1;
+#endif
+    const admiral::plan<double> p(shape, {.nthreads = n_threads, .eff = admiral::effort::measure});
+
+    for (auto _ : state)
+        p.forward(vin.data(), vout.data());
 }
 #endif
 
@@ -170,7 +195,7 @@ BENCHMARK(run_fft<1 << 23, 1>);
 BENCHMARK(run_fft<1 << 24, 1>);
 BENCHMARK(run_fft<1 << 25, 1>);
 
-#if defined(FFT_BENCH_MKL) | defined(FFT_BENCH_FFTW3) | defined(FFT_BENCH_DUCC) | defined(FFT_BENCH_SLEEF)
+#if defined(FFT_BENCH_MKL) | defined(FFT_BENCH_FFTW3) | defined(FFT_BENCH_DUCC) | defined(FFT_BENCH_SLEEF) | defined(FFT_BENCH_ADMIRAL)
 BENCHMARK(run_fft<1 << 4, 2>);
 BENCHMARK(run_fft<1 << 5, 2>);
 BENCHMARK(run_fft<1 << 6, 2>);

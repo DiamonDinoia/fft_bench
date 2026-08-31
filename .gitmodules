@@ -16,3 +16,6 @@
 [submodule "extern/ducc0new"]
 	path = extern/ducc0new
 	url = https://gitlab.mpcdf.mpg.de/mtr/ducc.git
+[submodule "extern/admiral"]
+	path = extern/admiral
+	url = https://github.com/DiamonDinoia/admiral.git

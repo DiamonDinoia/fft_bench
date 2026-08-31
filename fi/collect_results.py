@@ -15,14 +15,13 @@ mainfont = {
     'size': 18,
 }
 
-arches = ['rome', 'skylake', # 'icelake'
-          ]
-implementations = ['mkl', 'fftw3', 'mkl-omp', 'fftw3-omp', 'pocket', 'kiss', 'ducc', 'ducc-omp', 'sleef', 'sleef-omp']
+arches = ['icelake', 'rome', 'genoa']
+implementations = ['mkl', 'fftw3', 'mkl-omp', 'fftw3-omp', 'pocket', 'kiss', 'ducc', 'ducc-omp', 'sleef', 'sleef-omp', 'admiral', 'admiral-omp']
 
 cpu_data = {
     'rome': 'AMD EPYC 7742',
     'icelake': 'Intel Xeon Platinum 8362',
-    'skylake': 'Intel Xeon Gold 6148',
+    'genoa': 'AMD EPYC 9474F',
 }
 
 def get_run_params(name: str):
@@ -32,8 +31,13 @@ aggregate_data = {}
 for arch in arches:
     aggregate_data[arch] = {}
     for implementation in implementations:
-        with open(f'{implementation}-{arch}.json', 'r') as f:
-            data = json.load(f)
+        try:
+            with open(f'{implementation}-{arch}.json', 'r') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            # e.g. fftw3-omp on genoa: MEASURE planning does not finish
+            print(f'skip {implementation}-{arch}: no json')
+            continue
 
         n_runs = len(data['benchmarks'])
         params = []
