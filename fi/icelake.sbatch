@@ -2,6 +2,7 @@
 #SBATCH --partition=gen
 #SBATCH --nodes=1
 #SBATCH --exclusive
+#SBATCH --cpus-per-task=64   # every logical CPU of the node (SMT off on rocky9 icelake; 128 if SMT ever returns)
 #SBATCH --job-name=fft-bench
 #SBATCH --output=icelake.log
 #SBATCH --constraint=icelake&rocky9

@@ -2,6 +2,7 @@
 #SBATCH --partition=gen
 #SBATCH --nodes=1
 #SBATCH --exclusive
+#SBATCH --cpus-per-task=96   # every logical CPU of the node (SMT off on rocky9 genoa; 192 if SMT ever returns)
 #SBATCH --job-name=fft-bench
 #SBATCH --output=genoa.log
 #SBATCH --constraint=genoa&rocky9

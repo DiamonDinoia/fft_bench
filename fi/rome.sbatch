@@ -2,6 +2,7 @@
 #SBATCH --partition=gen
 #SBATCH --nodes=1
 #SBATCH --exclusive
+#SBATCH --cpus-per-task=128   # every logical CPU of the node (SMT off on rocky9 rome; 256 if SMT ever returns)
 #SBATCH --job-name=fft-bench
 #SBATCH --output=rome.log
 #SBATCH --constraint=rome&rocky9
