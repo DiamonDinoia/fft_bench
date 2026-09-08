@@ -1,11 +1,13 @@
 # fft_bench N-D cluster diagnosis — admiral @ c4c3911235e8e20636f9be471efd4d9717852c8a (after), 2026-09-06
 
-**FINAL — FROZEN as committed to the fork (fft_bench main @ 5abf85e,
-fi/nd/2026-09-07-cluster-diagnosis.md, byte-identical to this file at freeze
-time).** The reship tables live in fi/nd/<host>-2026-09-07-reship.md (their own
-fork artifacts), not in this file — this diagnosis's "TBD (SP4)" tail is the
-pre-reship disposition and stays frozen as committed. The campaign's terminal
-receipt is the logbook capstone (memory/admiral/2026-09-07-fftbench-cluster.md).
+**FINAL (round 2) — FROZEN as committed to the fork (fft_bench main, doc-sync
+commit at admiral master == 017e132).** This round-2 sync supersedes the r1
+freeze (fork 5abf85e): it carries the audit HIGH-1 closure (COLDIF's staged arm
+flip to default-ON, 017e132), the ROUND-2 reship tables below (r1 tables archived
+as fi/nd/<host>-2026-09-07-reship.md; the r2 content is the fi/nd/
+<host>-2026-09-08-reship.md class), the ice 2d_512 LOTTERY disposition, and the
+completed ledger. The campaign's terminal receipt is the logbook capstone
+(memory/admiral/2026-09-07-fftbench-cluster.md, closing section).
 
 Team-nddiag campaign (SP1 standings + SP2 per-host diagnosis). Single thread,
 complex f64 forward out-of-place, ns/transform, min over 5 interleaved rounds, arm
@@ -198,8 +200,13 @@ Rejected, with evidence (arms stay unmerged as receipts):
   kernel symbols below the gate; bit-delta control fires exactly at len 1024).
   rome leg: byte-identical control PASS (W=4 never instantiates the arm). Audit
   ACCEPT incl. the exact four-class mover taxonomy; doc slips D1-D6 recorded,
-  none verdict-moving; merge-time musts: claw re-runs + clang asan (the earlier
-  asan leg ran gcc 13.3 by silent module non-shadowing) + branch push/CI.
+  none verdict-moving. **HIGH-1 closure: the initial ship left the arm's switch
+  default-OFF; the adversarial audit caught it by censusing the round-1 reship
+  binaries' staged symbols (empty). Flip `017e132` (perf: enable the len>=1024
+  staged col pass_last by default) verified and the three standings re-ran
+  (round-2 tables below): the ice 2d_1024 win materialized (−10.7% absolute vs
+  the round-1 level / wall 0.88 class; fresh-process arms identical to the A/B),
+  and master == nd-campaign == 017e132.**
 - **GATE-GENOA: SHIP NOTHING** (deciding A/B landed) — the 2048 B col floor
   stands as fitted. Measured fired sets exact on-node (genoa 3 / rome 5 / ice
   3) and the fused-plane finding CONFIRMED: engine fused-axis lines
@@ -222,10 +229,61 @@ Rejected, with evidence (arms stay unmerged as receipts):
   is driver-side effort::estimate with production measure preserved in the
   sweep; rome l3_cores got settled on-node before reductions (l3_cores=4
   confirmed, no recompute needed).
-- Still queued: merges/cleanups of the shipped candidates (COLDIF merge-time
-  musts: gates re-run at the true rebase point, clang asan leg, branch push +
-  CI); transposed-route scalar mover (2d_8192, 0-8% — deferred, WONTFIX-grade);
-  rome 3d_256 NOISE — excluded from the improvement gate by construction;
-  COLDIF deferred leads A2 (pass_first arm) + B1/B2 (misal buffered staging).
+- Still open (deferred leads, no gate-blocking): transposed-route scalar mover
+  (2d_8192, 0-8% — deferred, WONTFIX-grade); COLDIF-A2 (pass_first arm);
+  COLDIF-B1/B2 (misal buffered staging); flatrow W=4 streaming variant;
+  pass-A batch gate re-approach; the dif-chain-ordering model re-fit at ALL
+  lengths (planrace option C, widened by the lottery bisect).
 
-Reship standings (pushed-tip tables + sha): TBD (SP4).
+## Reship standings — ROUND 2 (final; master == nd-campaign == 017e132, CI 76/76)
+
+Round-2 tables (jobs 7001688 / 7001689 / 7001690, admiral @
+017e132440a2900ae6dbf14f6a7a6e308ac51c46, 2026-09-08). Round-1 superseded and
+archived as fi/nd/<host>-2026-09-07-reship.md via the r1 names
+(<SCRATCH>/standings/<host>-reship-r1.md, TRANSIENT); r1 measured the
+default-OFF binary — its tables are the audit trail for HIGH-1, not the record.
+
+| host | D1 (c4c3911) | reship r1 (b68e64c) | reship r2 — FINAL (017e132) | era factor r2 |
+|---|---|---|---|---|
+| icelake | WIN 2 / TIE 2 / LOSS 14 | WIN 2 / TIE 1 / LOSS 15 | **WIN 3 / TIE 0 / LOSS 15** | (anchors in the reship mds) |
+| rome | WIN 5 / TIE 0 / LOSS 13 | WIN 6 / TIE 1 / LOSS 11 | **WIN 5 / TIE 1 / LOSS 12** | |
+| genoa | WIN 8 / TIE 2 / LOSS 8 | WIN 7 / TIE 3 / LOSS 8 | **WIN 9 / TIE 1 / LOSS 8** | |
+
+Pairwise net-progress accounting (the gate reads per-cell flips against the
+same-binary controls, with the lottery class neutralized — not raw table
+counts): **closed** rome 2d_8192 (LOSS→TIE) + rome 3d_64 (LOSS→WIN) + genoa
+3d_256 (TIE→WIN 0.9427); **opened** ice 2d_2048 (TIE→LOSS 1.075, floor
+tightening at absolute parity: 4.076e7→4.098e7 sub-era) + rome 2d_512
+(WIN→LOSS 1.003 at eps 0.0011 — one-cell thin, counter-class per the receipt);
+**neutralized** 2 lottery cells (ice 2d_512 + genoa 3d_128) exit the
+improvement gate as era-draw classes. Closed 3 vs opened 2 = net +1, and the
+ice 2d_1024 D3-cell improvement (the COLDIF default-ON story) landed on top.
+
+Highlights of the final tables: ice 2d_1024 1.168 (r1) -> 1.037 (COLDIF now
+actually ON); ice 3d_64 TIE -> WIN 0.8805; rome 3d_64 stays WIN 0.9967;
+genoa 2d_256 TIE -> WIN 0.7863; genoa 3d_256 TIE -> WIN 0.9427; genoa 3d_128
+moves with era (1.007, eps 0.0002).
+
+LOTTERY disposition, ice 2d_512 (job 7001799, worker6118 + non-execution proof
+7001476): the reship-day same-binary split sits INSIDE one job (reship
+1.430-1.574e6 vs reship2 1.258-1.435e6 ns; D1-day uniformly ~1.25e6 at eps
+0.0015); the PRE (switch-off, = pre-flip-equivalent) and TIP arms draw from one
+unimodal slow cluster ~1.44e6 with medians within 0.2%, routes identical
+28/28 fresh processes, fp volume conserved (fp512 2.606e6 vs 2.602e6 per rep,
+0.998) — an era/node-day re-roll, not a merge regression (PRE does NOT track
+the D1 1.25e6 level, which the merge cannot have touched: the len-512 path is
+proven unexecuted by instruction identity). D3 reads this class exempt
+(reship-day same-binary eps 0.1207 is the honest floor there).
+
+## The completed ledger (12 cells)
+
+WONTFIX (11): ice 2d_64, 2d_256, 2d_512*, 2d_8192, 3d_8, 3d_128; rome 2d_32,
+2d_8192, 3d_32, 3d_128; genoa 2d_64 (* ice 2d_512 double-tagged LOTTERY).
+LOTTERY (2): ice 2d_512, genoa 3d_128. ice 2d_1024 graduated out of the ledger
+(OWNED-AND-SHIPPED at 017e132; the era evidence stays with the planrace entry).
+Deferred leads as listed above (COLDIF-A2 pass_first; flatrow W=4 streaming;
+pass-A gate re-approach; COLDIF-B1/B2; scalar mover rewrite; dif-chain re-fit).
+
+Reship raw TSVs (sole full-precision provenance) preserved in the logbook:
+bench-results/2026-09-07-cluster-reship/ (r1) and
+bench-results/2026-09-08-cluster-reship-r2/ (r2).
