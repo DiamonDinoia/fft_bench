@@ -1,6 +1,6 @@
-# fft_bench N-D standings, rome, 2026-09-07, admiral @ b68e64cb0f2aeea497a16eb9fa9cf46109f1e1a4 (reship)
+# fft_bench N-D standings, rome, 2026-09-08, admiral @ 017e132440a2900ae6dbf14f6a7a6e308ac51c46 (reship)
 
-Single thread, complex f64 forward oop, ns/transform, min over interleaved rounds, arm order rotated, one core pinned. Job 7000055.
+Single thread, complex f64 forward oop, ns/transform, min over interleaved rounds, arm order rotated, one core pinned. Job 7001689.
 Reduced with /mnt/home/mbarbone/scratch/team-nddiag/fft_bench/fi/nd/nd_reduce.py; verdicts by /mnt/home/mbarbone/scratch/team-nddiag/tools/nd_gen_standings.py (full precision, printed 4 sig figs).
 
 Era-calibration anchors: 2d_4096 and 2d_8192 (d3 compares this table against the D1 baseline drift-scaled by the geomean absolute admiral-ns ratio at these code-untouched cells).
@@ -8,63 +8,63 @@ Era-calibration anchors: 2d_4096 and 2d_8192 (d3 compares this table against the
 ## binaries (staged, sha256)
 
 ```
-e77f755b92e1bfa75ff59a5848fdea0ee4f845a9826e536fc791603f0d949139  /mnt/home/mbarbone/team-nddiag-shared/bins-reship/rome/admiral_bench
+3a1c27cfd0083765cc8819d227509dc493c38f928b1e6b43462fc6c33eaeb6e9  /mnt/home/mbarbone/team-nddiag-shared/bins-reship/rome/admiral_bench
 43926b08f9009e93eccc756aa9e3f679f9fecbc925c698b4170f86eff4451972  /mnt/home/mbarbone/team-nddiag-shared/bins-reship/rome/mkl_bench
 6e20a443f865ec2576874c50fc25fc7fc1c87ae5b020dc841b45f1916de8226e  /mnt/home/mbarbone/team-nddiag-shared/bins-reship/rome/fftw3_bench
-0cf11733d301e8616e8b07e2c8e765e2848405c4e8e63daa48206563abeb0b93  /mnt/home/mbarbone/team-nddiag-shared/bins-reship/rome/ducc_bench
+4e2f0f3388a20d1308ecd063a45299a312ca7a6a164bff09b6b38590418c5d6a  /mnt/home/mbarbone/team-nddiag-shared/bins-reship/rome/ducc_bench
 ```
 
 ## ratios (nd_reduce)
 
 | cell | reship | mkl | fftw | ducc | max/min reship | reship2/reship | adm/mkl | adm/fftw | adm/ducc | adm/best | leader |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| 2d_16 | 617.5 | 1553 | 429.2 | 1749 | 1.002 | 1.0002 | 0.398 | 1.439 | 0.353 | 1.439 | fftw |
-| 2d_32 | 3346 | 6386 | 1971 | 5714 | 1.001 | 0.9999 | 0.524 | 1.697 | 0.586 | 1.697 | fftw |
-| 2d_64 | 1.338e+04 | 2.646e+04 | 1.081e+04 | 2.013e+04 | 1.002 | 0.9999 | 0.506 | 1.237 | 0.665 | 1.237 | fftw |
-| 2d_128 | 6.515e+04 | 1.088e+05 | 6.344e+04 | 7.445e+04 | 1.016 | 1.0074 | 0.599 | 1.027 | 0.875 | 1.027 | fftw |
-| 2d_256 | 3.191e+05 | 5.324e+05 | 3.22e+05 | 4.068e+05 | 1.031 | 1.0078 | 0.599 | 0.991 | 0.784 | 0.991 | fftw |
-| 2d_512 | 1.36e+06 | 2.369e+06 | 1.394e+06 | 1.754e+06 | 1.045 | 0.9976 | 0.574 | 0.976 | 0.775 | 0.976 | fftw |
-| 2d_1024 | 8.162e+06 | 1.218e+07 | 9.407e+06 | 7.915e+06 | 1.021 | 1.0075 | 0.670 | 0.868 | 1.031 | 1.031 | ducc |
-| 2d_2048 | 4.302e+07 | 8.324e+07 | 4.681e+07 | 6.195e+07 | 1.006 | 1.0015 | 0.517 | 0.919 | 0.694 | 0.919 | fftw |
-| 2d_4096 | 1.949e+08 | 8.424e+08 | 2.001e+08 | 2.783e+08 | 1.009 | 0.9993 | 0.231 | 0.974 | 0.700 | 0.974 | fftw |
-| 2d_8192 | 8.813e+08 | 3.465e+09 | 8.753e+08 | 1.158e+09 | 1.008 | 1.0014 | 0.254 | 1.007 | 0.761 | 1.007 | fftw |
-| 3d_4 | 322.6 | 1763 | 139.5 | 1799 | 1.007 | 1.0033 | 0.183 | 2.313 | 0.179 | 2.313 | fftw |
-| 3d_8 | 1712 | 6105 | 1142 | 5290 | 1.002 | 1.0003 | 0.280 | 1.500 | 0.324 | 1.500 | fftw |
-| 3d_16 | 1.354e+04 | 3.3e+04 | 1.323e+04 | 3.047e+04 | 1.005 | 1.0001 | 0.410 | 1.023 | 0.444 | 1.023 | fftw |
-| 3d_32 | 1.588e+05 | 2.369e+05 | 1.318e+05 | 2.686e+05 | 1.007 | 0.9905 | 0.670 | 1.205 | 0.591 | 1.205 | fftw |
-| 3d_64 | 1.343e+06 | 2.737e+06 | 1.35e+06 | 2.126e+06 | 1.009 | 1.0030 | 0.491 | 0.995 | 0.632 | 0.995 | fftw |
-| 3d_128 | 2.378e+07 | 4.157e+07 | 1.978e+07 | 3.462e+07 | 1.011 | 1.0044 | 0.572 | 1.202 | 0.687 | 1.202 | fftw |
-| 3d_256 | 2.163e+08 | 3.867e+08 | 2.132e+08 | 3.002e+08 | 1.031 | 1.0207 | 0.559 | 1.015 | 0.720 | 1.015 | fftw |
-| 3d_512 | 1.887e+09 | 3.375e+09 | 1.964e+09 | 2.478e+09 | 1.018 | 0.9980 | 0.559 | 0.961 | 0.762 | 0.961 | fftw |
+| 2d_16 | 616.1 | 1547 | 431.3 | 1782 | 1.001 | 0.9997 | 0.398 | 1.428 | 0.346 | 1.428 | fftw |
+| 2d_32 | 3355 | 6393 | 1981 | 5782 | 1.003 | 1.0000 | 0.525 | 1.694 | 0.580 | 1.694 | fftw |
+| 2d_64 | 1.337e+04 | 2.653e+04 | 1.081e+04 | 2.012e+04 | 1.011 | 0.9999 | 0.504 | 1.238 | 0.665 | 1.238 | fftw |
+| 2d_128 | 6.5e+04 | 1.088e+05 | 6.428e+04 | 7.534e+04 | 1.014 | 1.0081 | 0.597 | 1.011 | 0.863 | 1.011 | fftw |
+| 2d_256 | 3.007e+05 | 5.355e+05 | 3.208e+05 | 4.068e+05 | 1.084 | 0.9985 | 0.561 | 0.937 | 0.739 | 0.937 | fftw |
+| 2d_512 | 1.386e+06 | 2.373e+06 | 1.382e+06 | 1.758e+06 | 1.005 | 1.0011 | 0.584 | 1.003 | 0.789 | 1.003 | fftw |
+| 2d_1024 | 8.583e+06 | 1.216e+07 | 9.173e+06 | 7.998e+06 | 1.025 | 1.0031 | 0.706 | 0.936 | 1.073 | 1.073 | ducc |
+| 2d_2048 | 4.326e+07 | 8.336e+07 | 4.795e+07 | 6.208e+07 | 1.006 | 0.9990 | 0.519 | 0.902 | 0.697 | 0.902 | fftw |
+| 2d_4096 | 1.961e+08 | 8.456e+08 | 2.069e+08 | 2.786e+08 | 1.005 | 0.9995 | 0.232 | 0.948 | 0.704 | 0.948 | fftw |
+| 2d_8192 | 8.897e+08 | 3.479e+09 | 8.864e+08 | 1.162e+09 | 1.005 | 0.9945 | 0.256 | 1.004 | 0.766 | 1.004 | fftw |
+| 3d_4 | 318.9 | 1761 | 140.1 | 1843 | 1.005 | 0.9995 | 0.181 | 2.276 | 0.173 | 2.276 | fftw |
+| 3d_8 | 1717 | 6169 | 1142 | 5339 | 1.004 | 1.0013 | 0.278 | 1.504 | 0.322 | 1.504 | fftw |
+| 3d_16 | 1.355e+04 | 3.298e+04 | 1.319e+04 | 3.029e+04 | 1.004 | 1.0000 | 0.411 | 1.027 | 0.447 | 1.027 | fftw |
+| 3d_32 | 1.594e+05 | 2.381e+05 | 1.317e+05 | 2.657e+05 | 1.016 | 0.9946 | 0.669 | 1.210 | 0.600 | 1.210 | fftw |
+| 3d_64 | 1.36e+06 | 2.745e+06 | 1.365e+06 | 2.123e+06 | 1.004 | 0.9983 | 0.496 | 0.997 | 0.641 | 0.997 | fftw |
+| 3d_128 | 2.329e+07 | 4.182e+07 | 1.974e+07 | 3.477e+07 | 1.029 | 0.9972 | 0.557 | 1.179 | 0.670 | 1.179 | fftw |
+| 3d_256 | 2.217e+08 | 3.881e+08 | 2.126e+08 | 3.028e+08 | 1.008 | 0.9974 | 0.571 | 1.043 | 0.732 | 1.043 | fftw |
+| 3d_512 | 1.931e+09 | 3.394e+09 | 1.969e+09 | 2.488e+09 | 1.021 | 1.0048 | 0.569 | 0.981 | 0.776 | 0.981 | fftw |
 
-reship: worst |cpu/real - 1| over cells = 0.0062
-mkl: worst |cpu/real - 1| over cells = 0.0048
-fftw: worst |cpu/real - 1| over cells = 0.0062
-ducc: worst |cpu/real - 1| over cells = 0.0054
+reship: worst |cpu/real - 1| over cells = 0.0060
+mkl: worst |cpu/real - 1| over cells = 0.0042
+fftw: worst |cpu/real - 1| over cells = 0.0056
+ducc: worst |cpu/real - 1| over cells = 0.0052
 
 ## verdicts
 
 | cell | adm/best | eps | verdict | leader |
 |---|---|---|---|---|
-| 2d_16 | 1.439 | 0.0002329 | LOSS | fftw |
-| 2d_32 | 1.697 | 9.586e-05 | LOSS | fftw |
-| 2d_64 | 1.237 | 0.0001063 | LOSS | fftw |
-| 2d_128 | 1.027 | 0.007362 | LOSS | fftw |
-| 2d_256 | 0.991 | 0.007847 | WIN | fftw |
-| 2d_512 | 0.9755 | 0.002443 | WIN | fftw |
-| 2d_1024 | 1.031 | 0.007479 | LOSS | ducc |
-| 2d_2048 | 0.9191 | 0.001488 | WIN | fftw |
-| 2d_4096 | 0.9739 | 0.0006749 | WIN | fftw |
-| 2d_8192 | 1.007 | 0.001414 | LOSS | fftw |
-| 3d_4 | 2.313 | 0.003285 | LOSS | fftw |
-| 3d_8 | 1.5 | 0.0002928 | LOSS | fftw |
-| 3d_16 | 1.023 | 5.266e-05 | LOSS | fftw |
-| 3d_32 | 1.205 | 0.009536 | LOSS | fftw |
-| 3d_64 | 0.995 | 0.00297 | WIN | fftw |
-| 3d_128 | 1.202 | 0.00442 | LOSS | fftw |
-| 3d_256 | 1.015 | 0.02065 | TIE | fftw |
-| 3d_512 | 0.961 | 0.002009 | WIN | fftw |
+| 2d_16 | 1.428 | 0.0002589 | LOSS | fftw |
+| 2d_32 | 1.694 | 3.173e-05 | LOSS | fftw |
+| 2d_64 | 1.238 | 0.0001281 | LOSS | fftw |
+| 2d_128 | 1.011 | 0.008087 | LOSS | fftw |
+| 2d_256 | 0.9372 | 0.0015 | WIN | fftw |
+| 2d_512 | 1.003 | 0.00109 | LOSS | fftw |
+| 2d_1024 | 1.073 | 0.003108 | LOSS | ducc |
+| 2d_2048 | 0.9021 | 0.001029 | WIN | fftw |
+| 2d_4096 | 0.9479 | 0.000546 | WIN | fftw |
+| 2d_8192 | 1.004 | 0.005459 | TIE | fftw |
+| 3d_4 | 2.276 | 0.0004763 | LOSS | fftw |
+| 3d_8 | 1.504 | 0.001297 | LOSS | fftw |
+| 3d_16 | 1.027 | 1.783e-05 | LOSS | fftw |
+| 3d_32 | 1.21 | 0.005368 | LOSS | fftw |
+| 3d_64 | 0.9967 | 0.001671 | WIN | fftw |
+| 3d_128 | 1.179 | 0.002838 | LOSS | fftw |
+| 3d_256 | 1.043 | 0.002626 | LOSS | fftw |
+| 3d_512 | 0.981 | 0.004844 | WIN | fftw |
 
-**WIN 6 / TIE 1 / LOSS 11**
+**WIN 5 / TIE 1 / LOSS 12**
 
 Raw TSV: /mnt/home/mbarbone/scratch/team-nddiag/standings/raw/rome/measure.tsv
