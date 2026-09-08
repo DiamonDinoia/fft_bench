@@ -1,5 +1,12 @@
 # fft_bench N-D cluster diagnosis — admiral @ c4c3911235e8e20636f9be471efd4d9717852c8a (after), 2026-09-06
 
+**FINAL — FROZEN as committed to the fork (fft_bench main @ 5abf85e,
+fi/nd/2026-09-07-cluster-diagnosis.md, byte-identical to this file at freeze
+time).** The reship tables live in fi/nd/<host>-2026-09-07-reship.md (their own
+fork artifacts), not in this file — this diagnosis's "TBD (SP4)" tail is the
+pre-reship disposition and stays frozen as committed. The campaign's terminal
+receipt is the logbook capstone (memory/admiral/2026-09-07-fftbench-cluster.md).
+
 Team-nddiag campaign (SP1 standings + SP2 per-host diagnosis). Single thread,
 complex f64 forward out-of-place, ns/transform, min over 5 interleaved rounds, arm
 order rotated, one core pinned; control arm after2 (same binary). Hosts and jobs:
