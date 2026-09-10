@@ -7,7 +7,7 @@ F=/mnt/home/mbarbone/repos/fft_bench
 B=/home/mbarbone/localcache/scratch/fftb-nd/step-l7
 S0=/home/mbarbone/localcache/scratch/fftb-nd/step0
 mkdir -p "$B"
-module load gcc/14.2.0
+module load gcc/14.2.0 intel-oneapi-mkl/2024.2.2 fftw/3.3.10
 for bin in admiral_bench mkl_bench fftw3_bench ducc_bench; do
   [ -x "$S0/$bin" ] || { echo "MISSING REF $S0/$bin"; exit 1; }
 done
