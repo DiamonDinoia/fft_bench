@@ -18,6 +18,21 @@ mainfont = {
 arches = ['icelake', 'rome', 'genoa']
 implementations = ['mkl', 'fftw3', 'mkl-omp', 'fftw3-omp', 'pocket', 'kiss', 'ducc', 'ducc-omp', 'sleef', 'sleef-omp', 'admiral', 'admiral-omp']
 
+# one fixed colour per library, so a library keeps its colour in every chart. Drawing
+# order alone does not: a missing json (fftw3-omp on genoa) shifts the whole cycle.
+# The '-omp' arm shares its library's colour; st and mt charts are separate figures.
+lib_colors = {
+    'admiral': '#d62728',
+    'mkl':     '#1f77b4',
+    'fftw3':   '#2ca02c',
+    'ducc':    '#ff7f0e',
+    'pocket':  '#9467bd',
+    'kiss':    '#8c564b',
+    'sleef':   '#17becf',
+}
+assert set(lib_colors) == {impl.removesuffix('-omp') for impl in implementations}
+assert len(set(lib_colors.values())) == len(lib_colors)
+
 cpu_data = {
     'rome': 'AMD EPYC 7742',
     'icelake': 'Intel Xeon Platinum 8362',
@@ -61,7 +76,8 @@ def plot_st_dim(dim: int):
                 sizes = [size ** dim for size in sizes]
                 # size is already the total gridpoint count; dt is us, so 1e3 gives ns
                 timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
-                plt.loglog(sizes, timings, label=impl, linewidth=3)
+                plt.loglog(sizes, timings, label=impl, linewidth=3,
+                           color=lib_colors[impl.removesuffix('-omp')])
 
         plt.title(f"{dim}D C2C on {cpu_data[arch]} (single-threaded)", fontdict=mainfont)
         plt.xlabel("Gridpoints", fontdict=mainfont)
@@ -85,7 +101,8 @@ def plot_mt_dim(dim: int):
                 sizes = [size ** dim for size in sizes]
                 # size is already the total gridpoint count; dt is us, so 1e3 gives ns
                 timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
-                plt.loglog(sizes, timings, label=impl, linewidth=3)
+                plt.loglog(sizes, timings, label=impl, linewidth=3,
+                           color=lib_colors[impl.removesuffix('-omp')])
         plt.title(f"{dim}D C2C on {cpu_data[arch]} (multi-threaded)", fontdict=mainfont)
         plt.xlabel("Gridpoints", fontdict=mainfont)
         plt.ylabel("Time per gridpoint (ns)", fontdict=mainfont)
