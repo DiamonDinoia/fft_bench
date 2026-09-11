@@ -118,3 +118,19 @@ add_executable(admiral_omp_bench ${PROJECT_SOURCE_DIR}/src/fft_bench.cpp)
 target_include_directories(admiral_omp_bench PRIVATE ${BENCH_INCLUDES})
 target_link_libraries(admiral_omp_bench benchmark::benchmark admiral::admiral_static)
 target_compile_options(admiral_omp_bench PRIVATE -march=${BENCH_ARCH} -DFFT_BENCH_ADMIRAL -DFFT_BENCH_OMP)
+
+# One cell per process for `perf stat`; see src/perf_cell.cpp.
+add_executable(admiral_cell ${PROJECT_SOURCE_DIR}/src/perf_cell.cpp)
+target_include_directories(admiral_cell PRIVATE ${BENCH_INCLUDES})
+target_link_libraries(admiral_cell admiral::admiral_static)
+target_compile_options(admiral_cell PRIVATE -march=${BENCH_ARCH} -DFFT_BENCH_ADMIRAL)
+
+add_executable(fftw3_cell ${PROJECT_SOURCE_DIR}/src/perf_cell.cpp)
+target_include_directories(fftw3_cell PRIVATE ${BENCH_INCLUDES} ${FFTW3_INCLUDE_DIRS})
+target_link_libraries(fftw3_cell ${FFTW3_LIBRARIES} ${FFTW3_LIBDIR}/libfftw3_omp.so OpenMP::OpenMP_CXX)
+target_compile_options(fftw3_cell PRIVATE -march=${BENCH_ARCH} -DFFT_BENCH_FFTW3)
+
+add_executable(mkl_cell ${PROJECT_SOURCE_DIR}/src/perf_cell.cpp)
+target_include_directories(mkl_cell PRIVATE ${BENCH_INCLUDES} ${MKL_H})
+target_link_libraries(mkl_cell mkl_rt OpenMP::OpenMP_CXX)
+target_compile_options(mkl_cell PRIVATE -march=${BENCH_ARCH} -DFFT_BENCH_MKL)
