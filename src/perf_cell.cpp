@@ -8,7 +8,16 @@
 // wall-clock answer needs no differencing. `rounds` defaults to 1; give it 5 or more when the
 // number is the answer rather than the counters.
 //
+// PERF_CELL_HUGE=1 madvises both buffers MADV_HUGEPAGE, =0 madvises MADV_NOHUGEPAGE, unset
+// leaves the system default. The rome cliff between 2^22 and 2^23 is a TLB hypothesis and this
+// is its control: if 4 KiB page walks are the stall, the cliff moves when the same transform
+// runs on 2 MiB pages. BOTH directions are forced, because a node whose THP is `always` would
+// otherwise give the two arms identical pages and a null result that looks like a refutation.
+// Either setting reports AnonHugePages from /proc/self/status after the transforms, which is
+// what separates "the pages did not change the time" from "the pages did not change".
+//
 // PERF_CELL_DEBUG=<n> sets admiral's plan trace level, so a run records the route it timed.
+// It prints once per EXECUTE, not once per plan, so never set it for a measured run.
 // PERF_CELL_WISDOM=<file> imports and exports FFTW wisdom, so FFTW_MEASURE is paid once
 // per size instead of once per process. MKL's fftw3 shim ignores it.
 //
@@ -20,8 +29,52 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 #include <random>
 #include <vector>
+
+#if defined(__linux__)
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
+// madvise takes a hugepage-aligned range, so the interior of the buffer is advised and the
+// unaligned head and tail keep 4 KiB pages.
+static void advise_pages(void* p, std::size_t bytes, bool huge) {
+#if defined(__linux__) && defined(MADV_HUGEPAGE)
+    constexpr std::uintptr_t kHuge = 2u << 20;
+    auto lo = reinterpret_cast<std::uintptr_t>(p);
+    const std::uintptr_t hi = (lo + bytes) & ~(kHuge - 1);
+    lo = (lo + kHuge - 1) & ~(kHuge - 1);
+    const int adv = huge ? MADV_HUGEPAGE : MADV_NOHUGEPAGE;
+    if (hi <= lo) {
+        std::fprintf(stderr, "perf_cell: buffer spans no aligned 2 MiB page, advice skipped\n");
+        return;
+    }
+    // The vector faulted every page at construction, and neither advice splits or collapses a
+    // page that already exists. MADV_DONTNEED drops them so the memset below re-faults the
+    // range under the advice just set. Without it MADV_NOHUGEPAGE is a no-op on a THP=always
+    // node and both arms run on 2 MiB pages.
+    if (madvise(reinterpret_cast<void*>(lo), hi - lo, adv) != 0)
+        std::fprintf(stderr, "perf_cell: madvise(%s) failed\n", huge ? "HUGEPAGE" : "NOHUGEPAGE");
+    else if (madvise(reinterpret_cast<void*>(lo), hi - lo, MADV_DONTNEED) != 0)
+        std::fprintf(stderr, "perf_cell: madvise(DONTNEED) failed\n");
+#else
+    (void)p; (void)bytes; (void)huge;
+    std::fprintf(stderr, "perf_cell: madvise page advice unavailable on this platform\n");
+#endif
+}
+
+// The advice is asynchronous, so the count that matters is the one the timed run actually had.
+static void report_anon_huge(const char* when) {
+    // AnonHugePages left /proc/self/status on 5.x kernels; smaps_rollup is where it lives now.
+    std::FILE* f = std::fopen("/proc/self/smaps_rollup", "r");
+    if (!f) return;
+    char line[256];
+    while (std::fgets(line, sizeof line, f))
+        if (std::strncmp(line, "AnonHugePages:", 14) == 0) { std::fprintf(stderr, "perf_cell: %s %s", when, line); break; }
+    std::fclose(f);
+}
 
 #ifdef FFT_BENCH_MKL
 #include <fftw/fftw3_mkl.h>
@@ -58,6 +111,19 @@ int main(int argc, char** argv) {
     for (const int d : shape) N *= static_cast<std::size_t>(d);
 
     std::vector<std::complex<double>> vin(N), vout(N);
+    const char* huge_env = std::getenv("PERF_CELL_HUGE");
+    if (huge_env) {
+        const bool huge = std::atoi(huge_env) != 0;
+        advise_pages(vin.data(), N * sizeof vin[0], huge);
+        advise_pages(vout.data(), N * sizeof vout[0], huge);
+        // The pages are faulted in under the advice, not before it, or the advice arrives too
+        // late to change anything: khugepaged collapsing them later is a different experiment.
+        std::memset(vin.data(), 0, N * sizeof vin[0]);
+        std::memset(vout.data(), 0, N * sizeof vout[0]);
+        std::fprintf(stderr, "perf_cell: page advice %s for %zu bytes each\n",
+                     huge ? "HUGEPAGE" : "NOHUGEPAGE", N * sizeof vin[0]);
+        report_anon_huge("after touch");
+    }
 
 #if defined(FFT_BENCH_MKL) || defined(FFT_BENCH_FFTW3)
     // fftw_plan_dft wants the slowest axis first, which is how `shape` is already laid out.

@@ -21,19 +21,23 @@
 # wall clock does, so the timing rows below compare admiral-serial against fftw3 only.
 #
 # Build (on a rocky9 workstation, modules as below):
-#   cmake -S .. -B ../build-rome -G Ninja -DCMAKE_BUILD_TYPE=Release -DBENCH_ARCH=znver2
-#   cmake --build ../build-rome --target admiral_cell fftw3_cell mkl_cell
+#   cmake -S .. -B ../build-perf-rome -G Ninja -DCMAKE_BUILD_TYPE=Release -DBENCH_ARCH=znver2
+#   cmake --build ../build-perf-rome --target admiral_cell fftw3_cell mkl_cell
 set -uo pipefail
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0
 module list 2>&1
 
-BT=$SLURM_SUBMIT_DIR/../../build-rome
+BT=$SLURM_SUBMIT_DIR/../../build-perf-rome
 source "$SLURM_SUBMIT_DIR/perf_lib.sh"
 export LOGERR=$SLURM_SUBMIT_DIR/rome_item2.stderr
 : > "$LOGERR"
-export PERF_CELL_DEBUG=2
+# admiral's route trace is emitted by EXECUTE, not by plan construction, so exporting
+# PERF_CELL_DEBUG for the whole job pays two fprintf calls to a GPFS-backed stderr inside
+# every timed transform. At 1-D 1024 that read 38 us per execute against a real ~1 us, and
+# MKL ignores the variable, so the comparison measured admiral's logging against MKL's
+# transform. Record the route once per cell with `route_of` and keep it unset elsewhere.
 # FFTW_MEASURE at 2^24 costs minutes. Pay it once per size into a wisdom file on GPFS, then
 # every later fftw3 process plans the same transform in milliseconds.
 export PERF_CELL_WISDOM=$SLURM_SUBMIT_DIR/rome_item2.wisdom
@@ -76,6 +80,9 @@ for e in 21 22 23 24 25; do
   N=$((1 << e))
   R=$(reps_for "$N")
   echo "SIZE,$N,reps,$R,$((3 * R))"
+  # The pass-count question IS which route each arm took, so both arms are recorded.
+  route_of "adm_serial:$N" "$SER" "$BT/admiral_cell" 1 "$N" 1
+  route_of "adm_ws:$N"     "$WS"  "$BT/admiral_cell" 1 "$N" 2
   for G in "$G1" "$G2" "$G3" "$G4"; do
     [[ -z "$G" ]] && continue
     for r in "$R" $((3 * R)); do

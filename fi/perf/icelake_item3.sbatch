@@ -18,19 +18,23 @@
 # plan construction and first-touch page-in. Nothing is reduced here: the log carries raw rows.
 #
 # Build (on a rocky9 workstation, modules as below):
-#   cmake -S .. -B ../build-icelake -G Ninja -DCMAKE_BUILD_TYPE=Release -DBENCH_ARCH=icelake-server
-#   cmake --build ../build-icelake --target admiral_cell mkl_cell fftw3_cell
+#   cmake -S .. -B ../build-perf-icelake -G Ninja -DCMAKE_BUILD_TYPE=Release -DBENCH_ARCH=icelake-server
+#   cmake --build ../build-perf-icelake --target admiral_cell mkl_cell fftw3_cell
 set -uo pipefail
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0
 module list 2>&1
 
-BT=$SLURM_SUBMIT_DIR/../../build-icelake
+BT=$SLURM_SUBMIT_DIR/../../build-perf-icelake
 source "$SLURM_SUBMIT_DIR/perf_lib.sh"
 export LOGERR=$SLURM_SUBMIT_DIR/icelake_item3.stderr
 : > "$LOGERR"
-export PERF_CELL_DEBUG=2
+# admiral's route trace is emitted by EXECUTE, not by plan construction, so exporting
+# PERF_CELL_DEBUG for the whole job pays two fprintf calls to a GPFS-backed stderr inside
+# every timed transform. At 1-D 1024 that read 38 us per execute against a real ~1 us, and
+# MKL ignores the variable, so the comparison measured admiral's logging against MKL's
+# transform. Record the route once per cell with `route_of` and keep it unset elsewhere.
 
 env_report
 echo "TREE,$BT"
@@ -74,6 +78,7 @@ for cell in $CELLS; do
   TOT=1; for ((i = 0; i < D; ++i)); do TOT=$((TOT * N1)); done
   R=$(reps_for "$TOT")
   echo "CELL,$D,$N1,elems,$TOT,reps,$R,$((3 * R))"
+  route_of "adm:${D}d:$N1" "$CPU" "$BT/admiral_cell" "$D" "$N1" 1
   for G in "$G1" "$G2" "$G3" "$G4" "$G5"; do
     [[ -z "$G" ]] && continue
     for r in "$R" $((3 * R)); do
