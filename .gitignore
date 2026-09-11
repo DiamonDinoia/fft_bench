@@ -5,3 +5,9 @@
 
 *.json
 *.log
+/fi/baseline-*/
+/fi/prev-*/
+*.stderr
+*.wisdom
+*.out
+*.tsv

@@ -1,6 +1,10 @@
 #include <complex>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <random>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
@@ -40,7 +44,53 @@ extern "C" {
 #include <admiral/admiral.hpp>
 #endif
 
+// Every arm allocates through here, because the allocator is a measured variable and not a
+// detail. fftw_malloc, mkl_malloc and Sleef_malloc return 64 B; std::vector and malloc return
+// 16 mod 64 at every size in this sweep. Splitting the field between the two measures the
+// allocator: on SPR, MKL alone runs 1.18x to 1.35x slower on 16 mod 64 than on its own
+// fftw_malloc, which is the size of the gap the standings attribute to the libraries.
+static void *bench_alloc(std::size_t bytes) {
+    void *p = std::aligned_alloc(64, (bytes + 63) & ~std::size_t{63});
+    if (p == nullptr) std::abort();
+    return p;
+}
+
+// std::vector with the same 64 B, so the arms that want a container keep one.
+template <typename T>
+struct bench_allocator {
+    using value_type = T;
+    bench_allocator() = default;
+    template <typename U>
+    bench_allocator(const bench_allocator<U> &) {}
+    T *allocate(std::size_t n) { return static_cast<T *>(bench_alloc(n * sizeof(T))); }
+    void deallocate(T *p, std::size_t) { std::free(p); }
+    template <typename U>
+    bool operator==(const bench_allocator<U> &) const { return true; }
+    template <typename U>
+    bool operator!=(const bench_allocator<U> &) const { return false; }
+};
+
+template <typename T>
+using bench_vector = std::vector<T, bench_allocator<T>>;
+
+// Every arm reaches here, so this is where the shared allocation is proved rather than assumed:
+// an arm that acquires its buffers anywhere else shows up as a nonzero residue and stops the run.
+void check_alignment(const double *in, const double *out) {
+    const std::size_t ain = reinterpret_cast<std::uintptr_t>(in) % 64;
+    const std::size_t aout = reinterpret_cast<std::uintptr_t>(out) % 64;
+    static bool reported = false;
+    if (!reported) {
+        reported = true;
+        std::fprintf(stderr, "ALIGN in=%zu mod 64, out=%zu mod 64\n", ain, aout);
+    }
+    if (ain != 0 || aout != 0) {
+        std::fprintf(stderr, "ALIGN: arm not on bench_alloc, timings are not comparable\n");
+        std::abort();
+    }
+}
+
 void initialize_arrays(int N, double *in, double *out) {
+    check_alignment(in, out);
     std::random_device rand_dev;
     std::mt19937 generator(rand_dev());
     std::uniform_real_distribution<double> distr(-1.0, 1.0);
@@ -55,8 +105,8 @@ void initialize_arrays(int N, double *in, double *out) {
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
     const int N = std::pow(N_per_dim, dim);
-    fftw_complex *in = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
-    fftw_complex *out = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * N);
+    fftw_complex *in = (fftw_complex *)bench_alloc(sizeof(fftw_complex) * N);
+    fftw_complex *out = (fftw_complex *)bench_alloc(sizeof(fftw_complex) * N);
     initialize_arrays(N, (double *)in, (double *)out);
 
     int n[dim];
@@ -75,15 +125,15 @@ static void run_fft(benchmark::State &state) {
         fftw_execute(p);
 
     fftw_destroy_plan(p);
-    fftw_free(in);
-    fftw_free(out);
+    std::free(in);
+    std::free(out);
 }
 #elif defined(FFT_BENCH_SLEEF)
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
     const int N = std::pow(N_per_dim, dim);
-    double *in = (double *)Sleef_malloc(2 * N * sizeof(double));
-    double *out = (double *)Sleef_malloc(2 * N * sizeof(double));
+    double *in = (double *)bench_alloc(2 * N * sizeof(double));
+    double *out = (double *)bench_alloc(2 * N * sizeof(double));
     initialize_arrays(N, (double *)in, (double *)out);
     SleefDFT_setPlanFilePath("plan.txt", NULL, SLEEF_PLAN_AUTOMATIC);
 
@@ -96,8 +146,8 @@ static void run_fft(benchmark::State &state) {
     for (auto _ : state)
         SleefDFT_double_execute(p, NULL, NULL);
 
-    Sleef_free(in);
-    Sleef_free(out);
+    std::free(in);
+    std::free(out);
     SleefDFT_dispose(p);
 }
 
@@ -105,8 +155,8 @@ static void run_fft(benchmark::State &state) {
 template <int N, int dim>
 static void run_fft(benchmark::State &state) {
     static_assert(dim == 1, "Multiple dimensions not implemented for pocket");
-    double *in = (double *)malloc(2 * sizeof(double) * N);
-    double *out = (double *)malloc(2 * sizeof(double) * N);
+    double *in = (double *)bench_alloc(2 * sizeof(double) * N);
+    double *out = (double *)bench_alloc(2 * sizeof(double) * N);
     initialize_arrays(N, in, out);
 
     cfft_plan p = make_cfft_plan(N);
@@ -119,8 +169,8 @@ static void run_fft(benchmark::State &state) {
 template <int N, int dim = 1>
 static void run_fft(benchmark::State &state) {
     static_assert(dim == 1, "Multiple dimensions not implemented for KISS");
-    kiss_fft_cpx *in = (kiss_fft_cpx *)malloc(sizeof(kiss_fft_cpx) * N);
-    kiss_fft_cpx *out = (kiss_fft_cpx *)malloc(sizeof(kiss_fft_cpx) * N);
+    kiss_fft_cpx *in = (kiss_fft_cpx *)bench_alloc(sizeof(kiss_fft_cpx) * N);
+    kiss_fft_cpx *out = (kiss_fft_cpx *)bench_alloc(sizeof(kiss_fft_cpx) * N);
     initialize_arrays(N, (double *)in, (double *)out);
     kiss_fft_cfg p = kiss_fft_alloc(N, 0, NULL, NULL);
 
@@ -139,7 +189,7 @@ static void run_fft(benchmark::State &state) {
         shape.push_back(N_per_dim);
         axes.push_back(i);
     }
-    std::vector<std::complex<double>> vin(N), vout(N);
+    bench_vector<std::complex<double>> vin(N), vout(N);
     initialize_arrays(N, (double *)vin.data(), (double *)vout.data());
     ducc0::cfmav<std::complex<double>> in(vin.data(), shape);
     ducc0::vfmav<std::complex<double>> out(vout.data(), shape);
@@ -157,7 +207,7 @@ static void run_fft(benchmark::State &state) {
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
     constexpr std::size_t N = std::pow(N_per_dim, dim);
-    std::vector<std::complex<double>> vin(N), vout(N);
+    bench_vector<std::complex<double>> vin(N), vout(N);
     initialize_arrays(N, (double *)vin.data(), (double *)vout.data());
     std::array<std::size_t, dim> shape;
     shape.fill(N_per_dim);
