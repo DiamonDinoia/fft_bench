@@ -3,7 +3,7 @@ FFTW3 run in FFTW_MEASURE mode. FFTW_PATIENT is death, and I wanted to give it a
 
 | MKL      | FFTW   | KISS             | Pocket   | DUCC              | Sleef         | Admiral |
 |----------|--------|------------------|----------|-------------------|---------------|---------|
-| 2026.0.0 | 3.3.11 | v131-101-ge5e3fac| 81d171a6 | 0.41.1-72-g9919ab6| 3.9.0-41-g7623d6c | e49684b |
+| 2026.0.0 | 3.3.11 | v131-101-ge5e3fac| 81d171a6 | 0.41.1-72-g9919ab6| 3.9.0-41-g7623d6c | a799b6b |
 
 FFTW3, MKL and gcc come from the cluster's Lmod modules (`gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0`); the module's FFTW3 carries the
 OpenMP threading library, which `fftw3_omp_bench` links. Machines: Intel Xeon Platinum 8362 (icelake), AMD EPYC 7742 (rome), AMD EPYC 9474F (genoa).
