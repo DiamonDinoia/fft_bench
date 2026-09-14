@@ -121,16 +121,11 @@ print("smoke: %s %.1f %s" % (b["name"], b["real_time"], b["time_unit"]))' \
 
 # ------------------------------------------------------------------- submit
 log "ready. Results land in $FI as <impl>-<class>.json (the sbatch cwd)."
-echo
-for c in "${CLASSES[@]}"; do echo "  sbatch $c.sbatch   # in $FI"; done
-echo
-if [[ "$MODE" == "--check" ]]; then
-  log "--check: nothing submitted."
-  exit 0
-fi
-cd "$FI" || fail "no $FI"
-for c in "${CLASSES[@]}"; do
-  sbatch "$c.sbatch" || fail "sbatch $c.sbatch"
-done
-log "submitted. Watch: squeue -u \$USER   Logs: $FI/{rome,icelake,genoa}.log"
-log "When all three finish: $0 --plots"
+# One sbatch topology for the whole anchored flow: sweep -> afterok anchor-probe ->
+# afterok collect, per class. fi/anchor/submit_chain.sh owns it (prints the full plan
+# with --check, submits without); ERA=<era-id> picks the anchor the probe runs against.
+CHAIN_ARGS=()
+[[ "$MODE" == "--check" ]] && CHAIN_ARGS+=(--check)
+"$FI/anchor/submit_chain.sh" "${CHAIN_ARGS[@]}" || fail "submit_chain.sh"
+[[ "$MODE" == "--check" ]] && exit 0
+log "When all three chains finish: $0 --plots"

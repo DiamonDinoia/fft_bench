@@ -6,7 +6,7 @@
 #SBATCH --job-name=fft-bench
 #SBATCH --output=icelake.log
 #SBATCH --constraint=icelake&rocky9
-#SBATCH --time=06:00:00
+#SBATCH --time=01:30:00   # provisional: pre-control-arm icelake draw ran 00:33:51 (job 7033752), the control arm adds ~4 min; re-derive from the rehearsal, then drop this comment
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0
@@ -36,3 +36,9 @@ taskset -c 0 $FFT_BENCH_PATH/kiss_bench --benchmark_out=kiss-icelake.json --benc
 taskset -c 0 $FFT_BENCH_PATH/ducc_bench --benchmark_out=ducc-icelake.json --benchmark_out_format=json --benchmark_time_unit=us
 taskset -c 0 $FFT_BENCH_PATH/sleef_bench --benchmark_out=sleef-icelake.json --benchmark_out_format=json --benchmark_time_unit=us
 taskset -c 0 $FFT_BENCH_PATH/admiral_bench --benchmark_out=admiral-icelake.json --benchmark_out_format=json --benchmark_time_unit=us
+# Same-binary control arm (fi/nd pattern: the after2 arm of fi/nd/nd_measure.sh, whose
+# nd_reduce.py --ctl column prints the same-binary floor per cell). admiral2 is THE SAME
+# binary re-run back-to-back so the two passes sit adjacent in time; geomean_table.py
+# prints the admiral2/admiral floor. See rome.sbatch for why the interleave granularity
+# is the whole run.
+taskset -c 0 $FFT_BENCH_PATH/admiral_bench --benchmark_out=admiral2-icelake.json --benchmark_out_format=json --benchmark_time_unit=us

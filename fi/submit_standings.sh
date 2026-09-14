@@ -37,11 +37,8 @@ arch="$FI/prev-$(date +%Y-%m-%d_%H%M)"
 mkdir -p "$arch" && cp -p "$FI"/*.json "$arch"/ 2>/dev/null
 echo "previous jsons copied to ${arch#"$REPO"/}"
 
-cd "$FI" || fail "no $FI"
-for c in "${CLASSES[@]}"; do
-  sbatch "$c.sbatch" || fail "sbatch $c.sbatch"
-done
+# Same anchored topology as submit_all.sh: sweep -> afterok anchor-probe -> afterok
+# collect per class (fi/anchor/submit_chain.sh). ERA=<era-id> picks the anchor era.
+"$FI/anchor/submit_chain.sh" || fail "submit_chain.sh"
 echo
-echo "watch:  squeue -u \$USER"
-echo "logs:   $FI/{rome,icelake,genoa}.log"
 echo "reduce: fi/geomean_table.py fi/baseline-2026-09-11-e61ae17"

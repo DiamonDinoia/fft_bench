@@ -62,6 +62,24 @@ fi = Path(__file__).resolve().parent
 for suffix, label in (('', 'ST'), ('-omp', 'MT')):
     emit(f'{label} standings', table(fi, suffix))
 
+# Same-binary floor: admiral2 is THE sweep binary re-run back-to-back in the same job
+# (the same-binary control pattern of fi/nd: after2 arm + nd_reduce.py --ctl column).
+# Per-cell admiral2/admiral, reduced to geomean + worst cell; kept for the mover verdicts
+# below.
+floors = {}
+print('\nsame-binary floor (admiral2/admiral re-run; expected ~1.0)')
+for arch in ARCHES:
+    a, b = cells(f'{fi}/admiral-{arch}.json'), cells(f'{fi}/admiral2-{arch}.json')
+    shared = sorted(set(a) & set(b))
+    if not shared:
+        print(f'  {arch:9} - (no admiral2-{arch}.json)')
+        continue
+    r = {c: b[c] / a[c] for c in shared}
+    floors[arch] = r
+    worst = max(shared, key=lambda c: abs(r[c] - 1))
+    print(f'  {arch:9} geomean {geomean(r.values()):.4f} over {len(shared)} cells; '
+          f'worst {worst} {r[worst]:.3f}')
+
 if len(sys.argv) > 1:
     base = sys.argv[1]
     print(f'\nper-cell new/old against {base} (admiral ST, <1 = faster now)')
@@ -76,3 +94,17 @@ if len(sys.argv) > 1:
         best = min(zip(r, shared))
         print(f'  {arch:9} geomean {geomean(r):.3f} over {len(r)} cells; '
               f'best {best[1]} {best[0]:.3f}; worst {worst[1]} {worst[0]:.3f}')
+        fl = floors.get(arch, {})
+        movers = [c for c in shared if abs(new[c] / old[c] - 1) > 0.05]
+        if fl and movers:
+            print('    movers (|new/old - 1| > 5%), with the same-binary floor:')
+            print('      cell           new/old  floor  verdict')
+            for c in sorted(movers, key=lambda c: -abs(new[c] / old[c] - 1)):
+                f = fl.get(c)
+                if f is None:
+                    verdict = 'no floor'
+                else:
+                    verdict = ('MOVE' if abs(new[c] / old[c] - 1) > abs(f - 1) + 0.02
+                               else 'wobble')
+                print(f'      {str(c):14} {new[c] / old[c]:.3f}   '
+                      f'{f if f is not None else float("nan"):.3f}   {verdict}')

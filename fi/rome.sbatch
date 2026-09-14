@@ -6,7 +6,7 @@
 #SBATCH --job-name=fft-bench
 #SBATCH --output=rome.log
 #SBATCH --constraint=rome&rocky9
-#SBATCH --time=06:00:00
+#SBATCH --time=01:30:00   # provisional: pre-control-arm rome draw ran 00:50:28 (job 7033751), the control arm adds ~4 min; re-derive from the rehearsal, then drop this comment
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0
@@ -36,3 +36,10 @@ taskset -c 0 $FFT_BENCH_PATH/kiss_bench --benchmark_out=kiss-rome.json --benchma
 taskset -c 0 $FFT_BENCH_PATH/ducc_bench --benchmark_out=ducc-rome.json --benchmark_out_format=json --benchmark_time_unit=us
 taskset -c 0 $FFT_BENCH_PATH/sleef_bench --benchmark_out=sleef-rome.json --benchmark_out_format=json --benchmark_time_unit=us
 taskset -c 0 $FFT_BENCH_PATH/admiral_bench --benchmark_out=admiral-rome.json --benchmark_out_format=json --benchmark_time_unit=us
+# Same-binary control arm (fi/nd pattern: the after2 arm of fi/nd/nd_measure.sh, whose
+# nd_reduce.py --ctl column prints the same-binary floor per cell). admiral2 is THE SAME
+# binary re-run back-to-back so the two passes sit adjacent in time; geomean_table.py
+# prints the admiral2/admiral floor. The sweep's unit of measurement is the whole-run,
+# so interleaving happens at run granularity: per-cell interleave would need one process
+# per cell and would no longer be the measurement the standings series is continuous with.
+taskset -c 0 $FFT_BENCH_PATH/admiral_bench --benchmark_out=admiral2-rome.json --benchmark_out_format=json --benchmark_time_unit=us
