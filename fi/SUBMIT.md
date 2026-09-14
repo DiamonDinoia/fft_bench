@@ -52,6 +52,52 @@ Submit all three chains at once. The QOS cpu cap (256) covers any TWO sweep jobs
 Nothing needs babysitting; a failed leg cancels only its own branch
 (DependencyNeverSatisfied for its children in `squeue` output).
 
+## Granule transfer probe wave (per-class ON/OFF admission A/B, WI-0a-ii)
+
+Decides, per node class, whether the AoS-granule leaf admissions beat the
+compile-time-OFF build (`ADM_GRANULE_ADMIT`) beyond the in-job control floor.
+One parameterized job per class builds yafft ON+OFF at the pinned sha on the
+node itself (offline: `git archive` + the GPFS CPM cache), then runs 12 rounds
+of pinned A/B with same-arm repeats as the spread floor.
+
+```
+cd /mnt/home/mbarbone/repos/fft_bench
+# 1. preflight (prints the full per-class plan, submits NOTHING)
+fi/probe/submit_probes.sh --check
+
+# 2. submit the three class jobs
+fi/probe/submit_probes.sh
+
+# 3. watch
+squeue -u $USER        # third job pends on the 256-cpu QOS, as the sweep does
+
+# 4. after all three land (GRANULE_AB_DONE in $RESULTS_DIR/<class>.slurm.<id>.log)
+fi/probe/reduce_transfer.py
+```
+
+`ADM_REF=<sha|branch>` picks the yafft revision (default `team/integration` tip,
+resolved to a full sha and stamped into every output name). `RESULTS_DIR=<dir>`
+overrides the destination (default `fi/probe/results/`); rows land as
+`<class>-<date>-<sha7>.{tsv,env.md,raw.txt}`.
+
+Expected durations: builds dominate. Two static yafft builds at full-node `-j`
+plus 48 driver invocations — conservative 30-45 min per class job under the
+provisional `--time=01:30:00` (tiny_ab carried the same limit for two on-node
+builds at only `-j16`).
+
+Ordering vs the standings rehearsal wave: the probes need nothing the rehearsal
+produces, but every job shares the 256-cpu QOS and the class node pools. Submit
+the probe wave AFTER the rehearsal sweeps drain (a class's probe queues behind
+that class's sweeps otherwise and both lengthen); probes and the tiny
+anchor collect legs may overlap freely.
+
+Verdict rule (wired into the reducer): per (class, cell) the admission ADMITs
+iff `off_min/on_min - 1 > 2x` the in-job same-arm control floor; a zero floor
+reports `DEGENERATE`, loudly. znver2 24x24-f32 carries an adverse prior (16 ymm
+registers); an `OFF (adverse prior)` there is an expected-possible outcome —
+record it, do not rescue it. An existing same-day same-sha TSV stem fails the
+job loudly; delete the stale stem to force a re-run.
+
 ## When everything is done (login-side)
 
 ```
