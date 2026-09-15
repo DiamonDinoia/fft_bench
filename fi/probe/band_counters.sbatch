@@ -88,15 +88,16 @@ for b in "${BL[@]}"; do
 done
 
 # Rerun protection, checked BEFORE anything is measured: a same-sha
-# re-submission fails loudly instead of redoing the wave. Delete the stale run
-# dir to force a re-run.
+# re-submission fails loudly instead of redoing the wave. A DELIBERATE re-run
+# lands next to the failed attempt via ATTEMPT (env, default empty):
+# ATTEMPT=r2 renames the run dir wi2a-<class>-<sha7>-r2.
 # The .git check pins MEM_REPO to the checkout ROOT, the shape the self-commit
 # below requires: REL keeps the admiral/beat-standings prefix only when
 # RUN_DIR starts from the root. A subdir MEM_REPO is tonight's 7041868 defect.
 [[ -d $MEM_REPO/.git ]] || fail "MEM_REPO=$MEM_REPO is not the logbook checkout root (no .git)"
-RUN_DIR=$MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-${ADM_SHA:0:7}
+RUN_DIR=$MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-${ADM_SHA:0:7}${ATTEMPT:+-$ATTEMPT}
 [[ ! -e $RUN_DIR ]] \
-  || fail "$RUN_DIR exists; delete the stale run dir to force a re-run"
+  || fail "$RUN_DIR exists; delete the stale run dir or re-run with ATTEMPT=r2 (env)"
 mkdir -p "$RUN_DIR" || fail "mkdir $RUN_DIR"
 # From here on the whole output also lands in the committed artifact.
 # The transcript is a comma-separated record stream and the name must survive the
@@ -217,6 +218,31 @@ declare -A DEEP=()
 for c in $DEEP_CELLS; do DEEP[$c]=1; done
 
 # ------------------------------------------------------------------- counters
+# The leg-list array is CTR_GROUPS, NEVER GROUPS: GROUPS is a bash special array
+# (the user's supplementary group ids). Assigning it returns an error, and bash
+# 5.1.8 in script context silently ABORTS the enclosing loop construct when the
+# assignment stands on its own line — no diagnostic, rc 0, later sections run
+# clean. The exact reader-reproducible illustration (the newline matters: the
+# one-line form 'for c in 1 2; do GROUPS=(x); done; echo TAIL' instead dies
+# silently with rc 1):
+#     for c in 1 2; do GROUPS=(x); done
+#     echo TAIL          # prints TAIL, zero iterations ran, rc 0
+# That is job 7041868's empty transcript: cell 1 printed SIZE+ROUTE, then its
+# GROUPS=(...) on its own line silently cancelled the whole counter phase while
+# the timing phase ran fine. ELEG/NLEG + the CTRLEGS assertion below are the
+# fence that turns any such section-skip into a loud exit 1; perf_run itself
+# now fails loud on any leg with zero numeric rows.
+ELEG=0
+for c in $CELLS; do
+  ge=2
+  if [[ -n ${DEEP[$c]:-} ]]; then
+    (( P )) && ge=$((ge + 1))
+    (( T )) && ge=$((ge + 2))
+    (( L && FILL_OK )) && ge=$((ge + 2))
+  fi
+  ELEG=$((ELEG + ge * 2 * NB))
+done
+NLEG=0
 for c in $CELLS; do
   cid=$(cell_id "$c")
   dn=${c#(}; dn=${dn%)}; d=${dn%%,*}; n=${dn##*,}
@@ -225,21 +251,25 @@ for c in $CELLS; do
   for b in "${BL[@]}"; do
     route_of "${SHORT[$b]}:$cid" "$MEAS" "${BIN[$b]}" "$d" "$n" 1
   done
-  GROUPS=("$G_BASE" "$G_FLOPS")
+  CTR_GROUPS=("$G_BASE" "$G_FLOPS")
   if [[ -n ${DEEP[$c]:-} ]]; then
-    (( P )) && GROUPS+=("$G_PIPES")
-    (( T )) && GROUPS+=("$G_TLB1" "$G_TLB2")
-    (( L && FILL_OK )) && GROUPS+=("$G_FILL" "$G_MAB")
+    (( P )) && CTR_GROUPS+=("$G_PIPES")
+    (( T )) && CTR_GROUPS+=("$G_TLB1" "$G_TLB2")
+    (( L && FILL_OK )) && CTR_GROUPS+=("$G_FILL" "$G_MAB")
   fi
-  for G in "${GROUPS[@]}"; do
+  for G in "${CTR_GROUPS[@]}"; do
     [[ -z $G ]] && continue
     for r in "$R" $((3 * R)); do
       for b in "${BL[@]}"; do
         perf_run "${SHORT[$b]}:$cid" "$MEAS" "${BIN[$b]}" "$d" "$n" 1 "$r" "$G"
+        NLEG=$((NLEG + 1))
       done
     done
   done
 done
+echo "CTRLEGS,$NLEG,expected,$ELEG"
+[[ $NLEG -gt 0 && $NLEG -eq $ELEG ]] \
+  || fail "counter legs ran $NLEG of $ELEG expected (silent section skip — job 7041868 class)"
 
 # --------------------------------------------------------------------- timing
 # 12 rounds, backend order rotated each round; each process reports its

@@ -98,17 +98,37 @@ report_events() {
 # perf_run <tag> <cpus> <bin> <dim> <n> <nthreads> <reps> <events-csv>
 # Emits one `CTR,<tag>,<reps>,<event>,<value>` row per counter. Keep <tag> free of commas. Rounds is 1: the counter is
 # the answer here, and a second round would double the work the counter is attributed to.
+# FAILS LOUD: a leg whose perf stat errors, or whose output parses to zero numeric
+# rows, is exit 1 with a named marker — never a silently missing CTR span (job
+# 7041868 learned this by omission).
 perf_run() {
   local tag=$1 cpus=$2 bin=$3 dim=$4 n=$5 nt=$6 reps=$7 ev=$8
   # A measured run with the trace on charges admiral an fprintf pair per transform and MKL
   # nothing, which is how a whole icelake counter phase read 38 us for a 1-D 1024.
   [[ -n ${PERF_CELL_DEBUG:-} ]] && { echo "PERF_LIB_FAIL: PERF_CELL_DEBUG set during a measured run" >&2; exit 1; }
-  local f; f=$(mktemp)
-  taskset -c "$cpus" perf stat -x, -o "$f" -e "$ev" -- "$bin" "$dim" "$n" "$nt" "$reps" 1 \
-    >/dev/null 2>>"$LOGERR"
+  local f fe evc; f=$(mktemp); fe=$(mktemp)
+  # perf 5.14 el9 rejects a space-separated -e list ("event syntax error");
+  # the gate never saw it because probes run one event at a time. Comma-join.
+  evc=${ev// /,}
+  # stderr goes to a per-call file, surfaced only on failure: the inherited
+  # 2>>"$LOGERR" (=/dev/stderr) gives a failed leg no failure attachment at all —
+  # perf's diagnostics just interleave into the general stream. The surface-on-
+  # failure path here is the only one we can prove prints the perf side next to
+  # the WI2_FAIL marker (proof: ARM4 of the ctrfix harness).
+  taskset -c "$cpus" perf stat -x, -o "$f" -e "$evc" -- "$bin" "$dim" "$n" "$nt" "$reps" 1 \
+    >/dev/null 2>"$fe"
+  local prc=$?
+  local nout
+  nout=$(awk -F, '!/^#/ && NF >= 3 && $1 != ""' "$f" | wc -l)
+  if (( prc != 0 )) || (( nout == 0 )); then
+    echo "WI2_FAIL: counter leg empty (perf rc=$prc, numeric rows=$nout) tag=$tag ev=[$evc]" >&2
+    sed 's/^/  perf: /' "$fe" >&2
+    rm -f "$f" "$fe"
+    exit 1
+  fi
   awk -F, -v t="$tag" -v r="$reps" '!/^#/ && NF >= 3 && $1 != "" {
         gsub(/^ +| +$/, "", $3); printf "CTR,%s,%s,%s,%s\n", t, r, $3, $1 }' "$f"
-  rm -f "$f"
+  rm -f "$f" "$fe"
 }
 
 # time_run <tag> <cpus> <bin> <dim> <n> <nthreads> <reps> <rounds>

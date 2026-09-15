@@ -30,6 +30,9 @@
 #                     (run dir lands under admiral/beat-standings/runs/;
 #                     a ROOT-relative REL pathspec needs the prefix — see the
 #                     7041868 note in band_counters.sbatch)
+#   ATTEMPT=<tag>     deliberate re-run suffix (default empty). ATTEMPT=r2 lands
+#                     the run dir at wi2a-<class>-<sha7>-r2, next to the failed
+#                     attempt, instead of tripping the stem guard.
 #   RESULTS_DIR=<d>   where the slurm %j logs land (default fi/probe/results)
 #   JOBS=<n>          build width (default: full host width)
 set -uo pipefail
@@ -113,11 +116,12 @@ echo "  backends:$BACKENDS (sleef descoped: loses to fftw3 at all six cells in t
 echo "  events:  $EVENTS"
 echo "  floor:   floor_cyc = mac_flops / (2 FLOPs x W=4 lanes) / 2 FMA pipes (znver2 law;"
 echo "           the SPR 'fma x 2' instruction-counting law is never imported)"
-echo "  results: job self-commits $MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-$SHA7/ before the WI2_DONE marker"
-echo "  slurm:   $RESULTS_DIR/wi2a-band-$CLASS.slurm.%j.log"
+echo "  results: job self-commits $MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-$SHA7${ATTEMPT:+-$ATTEMPT}/ before the WI2_DONE marker"
+echo "  slurm:   $RESULTS_DIR/wi2a-band-$CLASS${ATTEMPT:+-$ATTEMPT}.slurm.%j.log"
+[[ -n ${ATTEMPT:-} ]] && echo "  attempt: $ATTEMPT (deliberate re-run; the failed attempt's run dir stays for audit)"
 echo ""
-printf '  sbatch --constraint=%s&rocky9 -J wi2a-band-%s -o %s/wi2a-band-%s.slurm.%%j.log \\\n' \
-  "$CLASS" "$CLASS" "$RESULTS_DIR" "$CLASS"
+printf '  sbatch --constraint=%s&rocky9 -J wi2a-band-%s -o %s/wi2a-band-%s%s.slurm.%%j.log \\\n' \
+  "$CLASS" "$CLASS" "$RESULTS_DIR" "$CLASS" "${ATTEMPT:+-$ATTEMPT}"
 printf '           --export=ALL %s/band_counters.sbatch\n' "$SELF"
 echo "  (env exported by this script: CLASS CELLS DEEP_CELLS BACKENDS EVENTS ADM_SHA BT MEM_REPO)"
 echo "  (--export=ALL, not inline: CELLS carries commas, which --export=a=b,c=d would misparse)"
@@ -215,9 +219,10 @@ log "manifest: $BT/wi2a-manifest.txt ($(md5sum < "$BT/admiral_cell" | cut -c1-12
 # ------------------------------------------------------------------ submit
 mkdir -p "$RESULTS_DIR" || { echo "FAIL: mkdir $RESULTS_DIR" >&2; exit 1; }
 export CLASS CELLS DEEP_CELLS BACKENDS EVENTS ADM_SHA BT MEM_REPO
+[[ -n ${ATTEMPT:-} ]] && export ATTEMPT
 cd "$SELF" || { echo "FAIL: no $SELF" >&2; exit 1; }
 out=$(sbatch --constraint="$CLASS&rocky9" -J "wi2a-band-$CLASS" \
-      -o "$RESULTS_DIR/wi2a-band-$CLASS.slurm.%j.log" \
+      -o "$RESULTS_DIR/wi2a-band-$CLASS${ATTEMPT:+-$ATTEMPT}.slurm.%j.log" \
       --export=ALL \
       "$SELF/band_counters.sbatch") \
   || { echo "FAIL: sbatch: $out" >&2; exit 1; }
@@ -226,4 +231,4 @@ jid=${out##* }
 echo ""
 log "submitted wi2a-band-$CLASS as job $jid at adm ${ADM_SHA:0:7}"
 log "watch:  squeue -u \$USER; markers WI2_DONE / WI2_FAIL in the slurm log"
-log "run dir: $MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-${ADM_SHA:0:7} (self-committed by the job)"
+log "run dir: $MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-${ADM_SHA:0:7}${ATTEMPT:+-$ATTEMPT} (self-committed by the job)"
