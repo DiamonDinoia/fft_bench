@@ -20,7 +20,7 @@ set -uo pipefail
 SELF=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 FI=$(dirname "$SELF")
 REPO=$(dirname "$FI")
-CLASSES=(rome icelake genoa)
+read -ra CLASSES <<<"${FFT_BENCH_CLASSES:-rome icelake genoa}"  # env override = per-class runs under a queue cap
 ERA=${ERA:-era-2026-09-14-c9ae666}
 ANCHORS=${FFT_BENCH_ANCHORS:-/mnt/home/mbarbone/fft_bench_anchors}
 MEM_REPO=/mnt/home/mbarbone/repos/memory
@@ -33,7 +33,7 @@ MODE=submit
 ADM_SHA=$(git -C "$REPO/extern/admiral" rev-parse --verify -q HEAD 2>/dev/null) \
   || fail "extern/admiral HEAD unresolvable in $REPO"
 FB_SHA=$(git -C "$REPO" rev-parse --verify -q HEAD 2>/dev/null || echo unknown)
-SLUG=$(date +%F-%H%M)-adm${ADM_SHA:0:7}
+SLUG=${SLUG:-$(date +%F-%H%M)-adm${ADM_SHA:0:7}}  # pin SLUG to fold per-class chains into one receipt dir
 RUN_DIR=$MEM_REPO/admiral/beat-standings/runs/$SLUG
 RAW_DIR=/mnt/home/mbarbone/fft_bench_runs/$SLUG
 
@@ -91,8 +91,8 @@ fi
 # ---------------------------------------------------------------------- seed
 for c in "${CLASSES[@]}"; do mkdir -p "$RAW_DIR/$c" || fail "mkdir $RAW_DIR/$c"; done
 mkdir -p "$RUN_DIR" || fail "mkdir $RUN_DIR"
-printf 'class\tjob\tid\tnode\telapsed\tstate\texit\n' > "$RUN_DIR/JOBS.tsv"
-cat > "$RUN_DIR/README.md" <<EOF
+[[ -f $RUN_DIR/JOBS.tsv ]] || printf 'class\tjob\tid\tnode\telapsed\tstate\texit\n' > "$RUN_DIR/JOBS.tsv"
+[[ -f $RUN_DIR/README.md ]] || cat > "$RUN_DIR/README.md" <<EOF
 # Standings run $SLUG
 
 - fft_bench @ $FB_SHA ($REPO)
