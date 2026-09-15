@@ -10,8 +10,9 @@
 #
 #   12 rounds; arm order rotates ON,OFF / OFF,ON per round; each arm turn is TWO
 #   back-to-back driver invocations (rep 1, rep 2) whose same-arm pairs are the
-#   in-job control spread floor. 48 invocations x 9 cells = 432 TSV rows. Each
-#   invocation itself reports the driver's internal min-of-R per cell.
+#   in-job control spread floor. 48 invocations x 21 cells (WI-1b universe) =
+#   1008 TSV rows. Each invocation itself reports the driver's internal
+#   min-of-R per cell.
 #
 # The decision lives in fi/probe/reduce_transfer.py, not here: admission beats
 # OFF per (class, cell) iff OFF_min/ON_min - 1 exceeds 2x the control floor.

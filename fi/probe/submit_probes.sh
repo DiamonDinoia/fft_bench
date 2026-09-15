@@ -75,7 +75,7 @@ echo "           then benchmark/bench_granule_ab.cpp linked against each static 
 echo "           md5-distinct gate + nm granule-census gate before anything is timed"
 echo "  measure: exclusive node, one pinned physical core (idle sibling), 12 rounds with"
 echo "           rotated arm start, 2 same-arm repeats per turn (the control floor),"
-echo "           48 driver invocations x 9 cells = 432 rows"
+echo "           48 driver invocations x 21 cells (WI-1b universe) = 1008 rows"
 echo "  results: $RESULTS_DIR/<class>-<date>-${ADM_SHA:0:7}.{tsv,env.md,raw.txt}"
 echo "           (rerun protection: an existing stem fails the job loudly)"
 echo ""

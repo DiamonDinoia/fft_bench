@@ -8,9 +8,11 @@
 Row schema (fi/probe/granule_transfer.sbatch + canon_rows.py):
     class  cell  prec  round  rep  arm  ns
 12 rounds x 2 arms x 2 same-arm repeats = 24 rows per arm per (class, cell, prec),
-240 rows per class TSV. The two same-arm repeats of each (round, arm) turn are
-the in-job control floor: their relative deviations never leave the job, so no
-cross-node calibration is involved.
+1008 rows per class TSV at the 21-cell (WI-1b) universe. The two same-arm
+repeats of each (round, arm) turn are the in-job control floor: their
+relative deviations never leave the job, so no cross-node calibration is
+involved. A banked 9-cell (pre-WI-1b) TSV fails the coverage check below as
+stale-universe; that failure is the guard working.
 
 Verdict per (class, cell, prec):
     floor = max over (round, arm) pairs of (hi/lo - 1)
@@ -122,8 +124,10 @@ def markdown(red):
         lines.append(f"| {cls} | {cell} | {prec} | {d['on_min']:.9g} | {d['off_min']:.9g}"
                      f" | {d['on_min']/d['off_min']:.4f} | {d['gain']*100:.2f}%"
                      f" | {d['floor']*100:.2f}% | {d['verdict']} |")
-    lines.append("| spr (ccmlin075) | 12x12/16x16/24x24 | f32/f64 | — | — | — | — | — |"
-                 " see wi0c-granule-ab.md (squares, lane 2.2) |")
+    lines.append("| spr (ccmlin075) | 9x9..15x15 | f32/f64 | — | — | — | — | — |"
+                 " see wi1b-admissions.md (STEP-E squares) |")
+    lines.append("| spr (ccmlin075) | 12x12/24x24, 16x16 | f32/f64 (16x16 f32 only)"
+                 " | — | — | — | — | — | see wi0c-granule-ab.md (squares, lane 2.2) |")
     lines.append("| spr (ccmlin075) | 4x4x4/8x8x8 | f32/f64 | — | — | — | — | — |"
                  " see wi1a-cubes.md (cubes, lane 3.1) |")
     return "\n".join(lines)
@@ -185,6 +189,34 @@ def self_test():
         if cli.returncode != 0:
             print(f"SELFTEST_FAIL: {name}: CLI exit {cli.returncode}", file=sys.stderr)
             return 1
+    # Cardinality pin at the 21-cell WI-1b universe: the happy path must
+    # cover exactly 21 cells including the new squares (a quietly shrunk
+    # CANON_CELLS sails through the cases above; this one counts).
+    path = os.path.join(tmp, "universe21.tsv")
+    synth(path, "test", cases["admit"])
+    got = {k: d["verdict"] for k, d in reduce_rows(load(path)).items()}
+    if len(got) != 21 or ("test", "9x9", "f32") not in got:
+        print(f"SELFTEST_FAIL: universe-21: {len(got)} cells (want 21 incl."
+              " ('test', '9x9', 'f32'))", file=sys.stderr)
+        return 1
+    print("selftest universe-21: happy path covers exactly the 21-cell"
+          " universe incl. the WI-1b squares (as required)")
+
+    # Missing-a-new-cell: a TSV lacking 9x9/f32 entirely (a wave-3-shaped
+    # probe, or dropped new rows) must exit 2 naming the uncovered cell.
+    lines = [ln for ln in open(path).read().splitlines()
+             if not ln.startswith("test\t9x9\tf32\t")]
+    gap = os.path.join(tmp, "missing-new-cell.tsv")
+    open(gap, "w").write("\n".join(lines) + "\n")
+    cli = subprocess.run([sys.executable, os.path.abspath(__file__), gap],
+                         capture_output=True, text=True)
+    if cli.returncode != 2 or "'9x9', 'f32'" not in cli.stderr:
+        print(f"SELFTEST_FAIL: missing-new-cell: exit {cli.returncode} (want 2),"
+              f" stderr {cli.stderr!r} (want '9x9', 'f32' named)", file=sys.stderr)
+        return 1
+    print("selftest missing-new-cell: exit 2 naming ('test', '9x9', 'f32')"
+          " (as required)")
+
     # malformed: a dropped rep must exit 2 with a named gap
     bad = os.path.join(tmp, "malformed.tsv")
     good = os.path.join(tmp, "admit.tsv")
