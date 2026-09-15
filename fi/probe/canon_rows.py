@@ -26,6 +26,8 @@ CANON_CELLS = frozenset({
     ("12x12", "f32"), ("12x12", "f64"),
     ("16x16", "f32"),
     ("24x24", "f32"), ("24x24", "f64"),
+    ("4x4x4", "f32"), ("4x4x4", "f64"),
+    ("8x8x8", "f32"), ("8x8x8", "f64"),
 })
 
 _PREC = {"f32": "f32", "float": "f32", "s": "f32", "single": "f32",
@@ -37,7 +39,10 @@ class CanonError(Exception):
 
 
 def canon_cell(tok):
-    """'12x12', '12X12', '12^2', '12²' -> '12x12'; anything else raises."""
+    """'12x12'/'12^2'/'12²' -> 2-D; '4x4x4' -> 3-D; anything else raises."""
+    m = re.fullmatch(r"(\d+)\s*[xX×]\s*(\d+)\s*[xX×]\s*(\d+)", tok.strip())
+    if m:
+        return f"{int(m.group(1))}x{int(m.group(2))}x{int(m.group(3))}"
     m = re.fullmatch(r"(\d+)\s*[xX×]\s*(\d+)", tok.strip())
     if m:
         return f"{int(m.group(1))}x{int(m.group(2))}"

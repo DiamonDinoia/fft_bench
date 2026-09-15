@@ -123,7 +123,9 @@ def markdown(red):
                      f" | {d['on_min']/d['off_min']:.4f} | {d['gain']*100:.2f}%"
                      f" | {d['floor']*100:.2f}% | {d['verdict']} |")
     lines.append("| spr (ccmlin075) | 12x12/16x16/24x24 | f32/f64 | — | — | — | — | — |"
-                 " see wi0c-granule-ab.md (local A/B, lane 2.2) |")
+                 " see wi0c-granule-ab.md (squares, lane 2.2) |")
+    lines.append("| spr (ccmlin075) | 4x4x4/8x8x8 | f32/f64 | — | — | — | — | — |"
+                 " see wi1a-cubes.md (cubes, lane 3.1) |")
     return "\n".join(lines)
 
 
