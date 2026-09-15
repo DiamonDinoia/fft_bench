@@ -6,7 +6,7 @@
 #SBATCH --job-name=fft-bench
 #SBATCH --output=icelake.log
 #SBATCH --constraint=icelake&rocky9
-#SBATCH --time=01:30:00   # provisional: pre-control-arm icelake draw ran 00:33:51 (job 7033752), the control arm adds ~4 min; re-derive from the rehearsal, then drop this comment
+#SBATCH --time=01:30:00   # rehearsal 00:34:59 at 416 cells (7039701); grid-doubled estimate ~66 min -> holds at 1.36x
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0

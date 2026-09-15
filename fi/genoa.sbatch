@@ -6,7 +6,7 @@
 #SBATCH --job-name=fft-bench
 #SBATCH --output=genoa.log
 #SBATCH --constraint=genoa&rocky9
-#SBATCH --time=01:30:00   # provisional: pre-control-arm genoa draw ran 00:18:55 (job 7033753), the control arm adds ~4 min; re-derive from the rehearsal, then drop this comment
+#SBATCH --time=01:30:00   # rehearsal 00:20:02 at 416 cells (7040373); grid-doubled estimate ~38 min -> holds at 2.4x
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0

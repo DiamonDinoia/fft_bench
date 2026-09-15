@@ -6,7 +6,7 @@
 #SBATCH --job-name=fft-bench
 #SBATCH --output=rome.log
 #SBATCH --constraint=rome&rocky9
-#SBATCH --time=01:30:00   # provisional: pre-control-arm rome draw ran 00:50:28 (job 7033751), the control arm adds ~4 min; re-derive from the rehearsal, then drop this comment
+#SBATCH --time=02:30:00   # rehearsal 00:51:06 at 416 cells (7039551); the 71/56-cell grid (006c03e) nearly doubles cells to 787 -> est 96.6 min; 1.55x headroom, re-derive after the first grid-carrying sweep
 
 module purge
 module load modules/2.5-beta1 gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0
