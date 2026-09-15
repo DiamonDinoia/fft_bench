@@ -27,6 +27,9 @@ find_package(PkgConfig REQUIRED)
 find_package(MKL REQUIRED)
 find_package(OpenMP REQUIRED)
 pkg_check_modules(FFTW3 REQUIRED fftw3)
+# fftw3f from the SAME module vintage as fftw3 (the fftw/3.3.11 module ships both .pc files);
+# the run_fft_f32 cells on the fftw3 backend link libfftw3f (and libfftw3f_omp on the omp arm).
+pkg_check_modules(FFTW3F REQUIRED fftw3f)
 
 include(ExternalProject)
 ExternalProject_Add(libsleef
@@ -69,12 +72,12 @@ target_compile_options(ducc_omp_bench PRIVATE -O3 -march=${BENCH_ARCH} -ffast-ma
 
 add_executable(fftw3_bench ${PROJECT_SOURCE_DIR}/src/fft_bench.cpp)
 target_include_directories(fftw3_bench PRIVATE ${BENCH_INCLUDES} ${FFTW3_INCLUDE_DIRS})
-target_link_libraries(fftw3_bench ${FFTW3_LIBRARIES} benchmark::benchmark)
+target_link_libraries(fftw3_bench ${FFTW3_LIBRARIES} ${FFTW3F_LIBRARIES} benchmark::benchmark)
 target_compile_options(fftw3_bench PRIVATE -march=${BENCH_ARCH} -DFFT_BENCH_FFTW3)
 
 add_executable(fftw3_omp_bench ${PROJECT_SOURCE_DIR}/src/fft_bench.cpp)
 target_include_directories(fftw3_omp_bench PRIVATE ${BENCH_INCLUDES} ${FFTW3_INCLUDE_DIRS})
-target_link_libraries(fftw3_omp_bench ${FFTW3_LIBRARIES} ${FFTW3_LIBDIR}/libfftw3_omp.so  OpenMP::OpenMP_CXX benchmark::benchmark)
+target_link_libraries(fftw3_omp_bench ${FFTW3_LIBRARIES} ${FFTW3F_LIBRARIES} ${FFTW3_LIBDIR}/libfftw3_omp.so ${FFTW3F_LIBDIR}/libfftw3f_omp.so  OpenMP::OpenMP_CXX benchmark::benchmark)
 target_compile_options(fftw3_omp_bench PRIVATE -march=${BENCH_ARCH} -DFFT_BENCH_FFTW3 -DFFT_BENCH_OMP)
 
 add_executable(pocket_bench ${PROJECT_SOURCE_DIR}/src/fft_bench.cpp ${PROJECT_SOURCE_DIR}/extern/pocketfft/pocketfft.c)

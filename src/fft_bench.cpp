@@ -75,7 +75,7 @@ using bench_vector = std::vector<T, bench_allocator<T>>;
 
 // Every arm reaches here, so this is where the shared allocation is proved rather than assumed:
 // an arm that acquires its buffers anywhere else shows up as a nonzero residue and stops the run.
-void check_alignment(const double *in, const double *out) {
+void check_alignment(const void *in, const void *out) {
     const std::size_t ain = reinterpret_cast<std::uintptr_t>(in) % 64;
     const std::size_t aout = reinterpret_cast<std::uintptr_t>(out) % 64;
     static bool reported = false;
@@ -89,17 +89,28 @@ void check_alignment(const double *in, const double *out) {
     }
 }
 
-void initialize_arrays(int N, double *in, double *out) {
+// Scalar-templated: the same routine fills f64 and f32 complex-interleaved buffers. For T=double
+// the distribution type and draw count are unchanged, so f64 callers see the old behavior.
+template <typename T>
+void initialize_arrays(int N, T *in, T *out) {
     check_alignment(in, out);
     std::random_device rand_dev;
     std::mt19937 generator(rand_dev());
-    std::uniform_real_distribution<double> distr(-1.0, 1.0);
+    std::uniform_real_distribution<T> distr(T(-1), T(1));
 
     for (int i = 0; i < 2 * N; ++i)
         in[i] = distr(generator);
 
-    std::memset(out, 0, 2 * N * sizeof(double));
+    std::memset(out, 0, 2 * N * sizeof(T));
 }
+
+// f32 spine capability. pocket's vendored C-API (extern/pocketfft pocketfft.c) and kissfft
+// (pinned KISSFFT_DATATYPE=double in CMakeLists.txt; a second datatype would be build-system
+// surgery) are double-only, so neither emits run_fft_f32 cells. sleef ships float init1d/init2d
+// but no 3-D init, so its f32 spine stops at dim 2, behind the same guard shape as its f64 cells.
+#if !defined(FFT_BENCH_POCKET) && !defined(FFT_BENCH_KISS)
+#define FFT_BENCH_F32
+#endif
 
 #if defined(FFT_BENCH_MKL) | defined(FFT_BENCH_FFTW3)
 template <int N_per_dim, int dim>
@@ -128,6 +139,33 @@ static void run_fft(benchmark::State &state) {
     std::free(in);
     std::free(out);
 }
+
+template <int N_per_dim, int dim>
+static void run_fft_f32(benchmark::State &state) {
+    const int N = std::pow(N_per_dim, dim);
+    fftwf_complex *in = (fftwf_complex *)bench_alloc(sizeof(fftwf_complex) * N);
+    fftwf_complex *out = (fftwf_complex *)bench_alloc(sizeof(fftwf_complex) * N);
+    initialize_arrays(N, (float *)in, (float *)out);
+
+    int n[dim];
+    for (int i = 0; i < dim; ++i)
+        n[i] = N_per_dim;
+
+#ifdef FFT_BENCH_OMP
+    int n_threads;
+#pragma omp parallel
+    n_threads = omp_get_num_threads();
+    fftwf_plan_with_nthreads(n_threads);
+#endif
+    fftwf_plan p = fftwf_plan_dft(dim, n, in, out, FFTW_FORWARD, FFTW_MEASURE);
+
+    for (auto _ : state)
+        fftwf_execute(p);
+
+    fftwf_destroy_plan(p);
+    std::free(in);
+    std::free(out);
+}
 #elif defined(FFT_BENCH_SLEEF)
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
@@ -145,6 +183,28 @@ static void run_fft(benchmark::State &state) {
 
     for (auto _ : state)
         SleefDFT_double_execute(p, NULL, NULL);
+
+    std::free(in);
+    std::free(out);
+    SleefDFT_dispose(p);
+}
+
+template <int N_per_dim, int dim>
+static void run_fft_f32(benchmark::State &state) {
+    const int N = std::pow(N_per_dim, dim);
+    float *in = (float *)bench_alloc(2 * N * sizeof(float));
+    float *out = (float *)bench_alloc(2 * N * sizeof(float));
+    initialize_arrays(N, in, out);
+    SleefDFT_setPlanFilePath("plan.txt", NULL, SLEEF_PLAN_AUTOMATIC);
+
+    struct SleefDFT *p;
+    if constexpr (dim == 1)
+        p = SleefDFT_float_init1d(N_per_dim, in, out, SLEEF_MODE_FORWARD);
+    else if constexpr (dim == 2)
+        p = SleefDFT_float_init2d(N_per_dim, N_per_dim, in, out, SLEEF_MODE_FORWARD);
+
+    for (auto _ : state)
+        SleefDFT_float_execute(p, NULL, NULL);
 
     std::free(in);
     std::free(out);
@@ -203,6 +263,30 @@ static void run_fft(benchmark::State &state) {
     for (auto _ : state)
         ducc0::c2c(in, out, axes, true, 1., n_threads);
 }
+
+template <int N_per_dim, int dim>
+static void run_fft_f32(benchmark::State &state) {
+    constexpr int N = std::pow(N_per_dim, dim);
+    ducc0::fmav_info::shape_t shape, axes;
+
+    for (size_t i = 0; i < dim; ++i) {
+        shape.push_back(N_per_dim);
+        axes.push_back(i);
+    }
+    bench_vector<std::complex<float>> vin(N), vout(N);
+    initialize_arrays(N, (float *)vin.data(), (float *)vout.data());
+    ducc0::cfmav<std::complex<float>> in(vin.data(), shape);
+    ducc0::vfmav<std::complex<float>> out(vout.data(), shape);
+
+#ifdef FFT_BENCH_OMP
+    size_t n_threads = ducc0::detail_threading::ducc0_default_num_threads();
+#else
+    size_t n_threads = 1;
+#endif
+
+    for (auto _ : state)
+        ducc0::c2c(in, out, axes, true, 1.f, n_threads);
+}
 #elif defined(FFT_BENCH_ADMIRAL)
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
@@ -220,6 +304,25 @@ static void run_fft(benchmark::State &state) {
     constexpr std::size_t n_threads = 1;
 #endif
     const admiral::plan<double> p(shape, {.nthreads = n_threads, .eff = admiral::effort::measure});
+
+    for (auto _ : state)
+        p.forward(vin.data(), vout.data());
+}
+
+template <int N_per_dim, int dim>
+static void run_fft_f32(benchmark::State &state) {
+    constexpr std::size_t N = std::pow(N_per_dim, dim);
+    bench_vector<std::complex<float>> vin(N), vout(N);
+    initialize_arrays(N, (float *)vin.data(), (float *)vout.data());
+    std::array<std::size_t, dim> shape;
+    shape.fill(N_per_dim);
+
+#ifdef FFT_BENCH_OMP
+    constexpr std::size_t n_threads = 0;  // 0 = auto
+#else
+    constexpr std::size_t n_threads = 1;
+#endif
+    const admiral::plan<float> p(shape, {.nthreads = n_threads, .eff = admiral::effort::measure});
 
     for (auto _ : state)
         p.forward(vin.data(), vout.data());
@@ -245,6 +348,29 @@ BENCHMARK(run_fft<1 << 23, 1>);
 BENCHMARK(run_fft<1 << 24, 1>);
 BENCHMARK(run_fft<1 << 25, 1>);
 
+// f32 pow2 context spine: the f64 ladder as run_fft_f32 so the consumers can key precision off
+// the family name and an f32 cell can never overwrite its f64 twin in a (rank, n)-keyed table.
+#ifdef FFT_BENCH_F32
+BENCHMARK(run_fft_f32<1 << 8, 1>);
+BENCHMARK(run_fft_f32<1 << 9, 1>);
+BENCHMARK(run_fft_f32<1 << 10, 1>);
+BENCHMARK(run_fft_f32<1 << 11, 1>);
+BENCHMARK(run_fft_f32<1 << 12, 1>);
+BENCHMARK(run_fft_f32<1 << 13, 1>);
+BENCHMARK(run_fft_f32<1 << 14, 1>);
+BENCHMARK(run_fft_f32<1 << 15, 1>);
+BENCHMARK(run_fft_f32<1 << 16, 1>);
+BENCHMARK(run_fft_f32<1 << 17, 1>);
+BENCHMARK(run_fft_f32<1 << 18, 1>);
+BENCHMARK(run_fft_f32<1 << 19, 1>);
+BENCHMARK(run_fft_f32<1 << 20, 1>);
+BENCHMARK(run_fft_f32<1 << 21, 1>);
+BENCHMARK(run_fft_f32<1 << 22, 1>);
+BENCHMARK(run_fft_f32<1 << 23, 1>);
+BENCHMARK(run_fft_f32<1 << 24, 1>);
+BENCHMARK(run_fft_f32<1 << 25, 1>);
+#endif
+
 #if defined(FFT_BENCH_MKL) | defined(FFT_BENCH_FFTW3) | defined(FFT_BENCH_DUCC) | defined(FFT_BENCH_SLEEF) | defined(FFT_BENCH_ADMIRAL)
 BENCHMARK(run_fft<1 << 4, 2>);
 BENCHMARK(run_fft<1 << 5, 2>);
@@ -256,6 +382,22 @@ BENCHMARK(run_fft<1 << 10, 2>);
 BENCHMARK(run_fft<1 << 11, 2>);
 BENCHMARK(run_fft<1 << 12, 2>);
 BENCHMARK(run_fft<1 << 13, 2>);
+// granule standings cells, f64
+BENCHMARK(run_fft<12, 2>);
+BENCHMARK(run_fft<24, 2>);
+
+#ifdef FFT_BENCH_F32
+// granule standings cells, f32 (16^2 has no f64 twin by design)
+BENCHMARK(run_fft_f32<12, 2>);
+BENCHMARK(run_fft_f32<16, 2>);
+BENCHMARK(run_fft_f32<24, 2>);
+// f32 pow2 2-D context spine
+BENCHMARK(run_fft_f32<1 << 6, 2>);
+BENCHMARK(run_fft_f32<1 << 7, 2>);
+BENCHMARK(run_fft_f32<1 << 8, 2>);
+BENCHMARK(run_fft_f32<1 << 9, 2>);
+BENCHMARK(run_fft_f32<1 << 10, 2>);
+#endif
 
 #if not defined(FFT_BENCH_SLEEF)
 BENCHMARK(run_fft<1 << 2, 3>);
@@ -266,6 +408,19 @@ BENCHMARK(run_fft<1 << 6, 3>);
 BENCHMARK(run_fft<1 << 7, 3>);
 BENCHMARK(run_fft<1 << 8, 3>);
 BENCHMARK(run_fft<1 << 9, 3>);
+// granule cube standings cells, f64
+BENCHMARK(run_fft<12, 3>);
+BENCHMARK(run_fft<24, 3>);
+
+#ifdef FFT_BENCH_F32
+// granule cube standings cells, f32
+BENCHMARK(run_fft_f32<12, 3>);
+BENCHMARK(run_fft_f32<24, 3>);
+// f32 pow2 3-D context spine
+BENCHMARK(run_fft_f32<1 << 6, 3>);
+BENCHMARK(run_fft_f32<1 << 7, 3>);
+BENCHMARK(run_fft_f32<1 << 8, 3>);
+#endif
 #endif
 #endif
 

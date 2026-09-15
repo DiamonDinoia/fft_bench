@@ -55,6 +55,9 @@ unset NINJA_STATUS
 [[ "$(cmake --version 2>/dev/null | head -1)" == *"3.31.11"* ]] || fail "cmake is not 3.31.11"
 ninja --version >/dev/null 2>&1 || fail "ninja does not answer --version"
 [[ -n "${MKLROOT:-}" && -e "$MKLROOT/lib/libmkl_core.so" ]] || fail "MKL 2026.0.0 not resolvable (MKLROOT=${MKLROOT:-unset})"
+# the f32 cells on the fftw3 backend link fftw3f from the same module vintage
+[[ "$(pkg-config --modversion fftw3f 2>/dev/null)" == "3.3.11" ]] \
+  || fail "fftw3f not resolvable at 3.3.11 (shipped by the fftw/3.3.11 module): $(pkg-config --modversion fftw3f 2>&1)"
 log "g++ $(g++ -dumpversion), cmake $(cmake --version | head -1 | awk '{print $3}'), MKLROOT=$MKLROOT"
 
 # Every -march this script asks for must be one this gcc accepts.
