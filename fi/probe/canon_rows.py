@@ -7,7 +7,7 @@ through this canonicalizer. fi/probe/reduce_transfer.py imports the same cell
 table, so the cell universe exists in exactly one place.
 
 Driver contract (yafft benchmark/bench_granule_ab.cpp print_row; kAdmitted at
-dbfbe87, 21 rows): one row per (cell, prec), tab-separated key=value fields
+0350855, 19 rows): one row per (cell, prec), tab-separated key=value fields
 behind the literal marker 'ab':
 
     ab	cell=12x12	prec=f32	mode=plan	arm=lib	tag=run	ns_min=156.45	reps=9	burst=239	sink=-2.659197e+02
@@ -19,20 +19,25 @@ driver's --candidate path, which the arm's runs never invoke. Spellings are
 normalized here (12^2, 12x12, 12² all read 12x12; f32/float/s read f32) so a
 driver-side spelling change cannot fork the results TSV.
 
-The printed set is the driver's STATIC kAdmitted repertoire -- the 21
+The printed set is the driver's STATIC kAdmitted repertoire -- the 19
 (cell, prec) pairs in CANON_CELLS (WI-1b grew it from the wave-3 nine:
-N in {9..15} squares joined {12,16,24}, f64 everywhere except 16x16;
-cubes unchanged) -- emitted unconditionally on every arch: the
+the N in {9..15} squares joined {12,16,24}, f64 everywhere except 16x16;
+W4 then cut the 9x9/11x11 f32 squares back out -- both read OFF past the
+2x floor on the genoa class probe and the pre-registered no-conjunct rule
+makes a single-class OFF a global revert of the bit, wi1b-admissions.md
+W4 section; cubes unchanged) -- emitted unconditionally on every arch: the
 ADM_GRANULE_ADMIT knob and the granule_*_admit_v predicates gate which
 route and speed each plan takes, never whether the row prints (at a
-sub-dialect ISA such as x86-64-v2 the driver still prints all 21 rows and
+sub-dialect ISA such as x86-64-v2 the driver still prints all 19 rows and
 the ON/OFF arms coincide). Wave-2's bogus '0/9 cells' verdict was this file's
 parser expecting a bare 3-column TSV that no shipped driver ever prints --
 the znver2/icelake-server/znver4 failed raws each carried all nine
 (wave-3-era) rows -- not a class-dependent admitted set; there is no
 per-arch admission variance in the printed repertoire. A 9-cell raw probed
-at a pre-WI-1b ref now FAILS here as stale-universe, naming the 12 missing
-cells; that failure is the guard working (self-test 'stale-universe').
+at a pre-WI-1b ref now FAILS here as stale-universe, naming the 10 missing
+cells (self-test 'stale-universe'), and a wave-4-era 21-cell raw fails the
+other way, naming the reverted cell as unexpected (self-test
+'wave4-superset').
 
     canon_rows.py <class> <round> <rep> <arm> <raw-file> <results.tsv>
     canon_rows.py --self-test    # synthetic fixtures; no cluster needed
@@ -48,12 +53,13 @@ import subprocess
 import sys
 import tempfile
 
-# The registration the driver must print in full: the 21 (cell, prec) pairs
-# of the driver's static kAdmitted table at dbfbe87 (WI-1b), arch-independent
-# by construction (see module docstring). A row outside this set is driver
-# drift and fails the job, never a silent skip; so is a missing member, which
-# is also what fails a pre-WI-1b (9-cell) raw as stale-universe.
-_CANON_SQUARES_F32 = (9, 10, 11, 12, 13, 14, 15, 16, 24)  # 16 is f32-only
+# The registration the driver must print in full: the 19 (cell, prec) pairs
+# of the driver's static kAdmitted table at 0350855 (WI-1b less the
+# W4-reverted 9x9/11x11 f32 squares), arch-independent by construction (see
+# module docstring). A row outside this set is driver drift and fails the
+# job, never a silent skip; so is a missing member, which is also what fails
+# a pre-WI-1b (9-cell) raw as stale-universe.
+_CANON_SQUARES_F32 = (10, 12, 13, 14, 15, 16, 24)  # 16 f32-only; 9/11 f32 reverted at W4
 _CANON_SQUARES_F64 = (9, 10, 11, 12, 13, 14, 15, 24)      # no 16x16 f64: pinned OFF
 CANON_CELLS = frozenset(
     [(f"{n}x{n}", "f32") for n in _CANON_SQUARES_F32]
@@ -210,16 +216,17 @@ def self_test():
     print(f"selftest drop-one-cell: exit 1 naming only {dropped} (as required)")
 
     # Stale-universe negative control: a wave-3-era (9-cell) raw is no longer
-    # canonicalizable -- it must die naming exactly the 12 cells WI-1b added,
-    # so a W4 probe aimed at a pre-WI-1b ref cannot silently record less.
+    # canonicalizable -- it must die naming exactly the cells WI-1b added and
+    # W4 kept, so a probe aimed at a pre-WI-1b ref cannot silently record less.
     cli, _ = run(_synth_raw(sorted(WAVE3_CELLS)))
     added = sorted(CANON_CELLS - WAVE3_CELLS)
     unnamed = [c for c in added if str(c) not in cli.stderr]
     if (cli.returncode != 1 or f"{len(WAVE3_CELLS)}/{len(CANON_CELLS)}" not in cli.stderr
             or unnamed):
         print(f"SELFTEST_FAIL: stale-universe: exit {cli.returncode} (want 1),"
-              f" stderr {cli.stderr!r} (want '9/21' and all 12 added cells named;"
-              f" unnamed: {unnamed})", file=sys.stderr)
+              f" stderr {cli.stderr!r} (want '{len(WAVE3_CELLS)}/{len(CANON_CELLS)}'"
+              f" and all {len(added)} added cells named; unnamed: {unnamed})",
+              file=sys.stderr)
         return 1
     print(f"selftest stale-universe: 9-cell raw exits 1 naming all"
           f" {len(added)} WI-1b-added cells (as required)")
@@ -231,6 +238,9 @@ def self_test():
         # 16x16 f64 sits inside the N grid but is pinned OFF in the engine:
         # a present-but-unadmitted cell is driver drift, not a canonical row.
         "unexpected-cell": full + _synth_raw([("16x16", "f64")]),
+        # Wave-4 superset: a 21-cell raw still carrying a W4-reverted cell is
+        # stale the other way and must die naming it as unexpected.
+        "wave4-superset": full + _synth_raw([("9x9", "f32")]),
         "non-positive-ns": _synth_raw(sorted(CANON_CELLS), ns=0.00),
         "malformed-field": full.replace("\tmode=plan", "\tmodeplan", 1),
         "leaf-mode-drift": full.replace("mode=plan", "mode=leaf-rows", 1),
