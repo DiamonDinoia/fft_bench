@@ -28,7 +28,15 @@
 #
 # Submitted ONLY by fi/probe/submit_band.sh, which passes --constraint on the
 # CLI (never in-file) and exports CLASS CELLS BACKENDS EVENTS DEEP_CELLS
-# ADM_SHA BT MEM_REPO. No admiral build happens on the node.
+# ADM_SHA BT MEM_REPO. No admiral build happens on the node. MEM_REPO is the
+# logbook checkout ROOT (fi/anchor/submit_chain.sh and fi/probe/large_route.sbatch
+# convention); RUN_DIR carries the admiral/beat-standings prefix, so the REL
+# pathspec in the self-commit below stays repo-root-relative even under a git
+# whose add and commit --only disagree on cwd-prefix absorption. The wi2a job
+# 7041868 root cause was the ARTIFACT name, not the rel math: the logbook
+# .gitignore rules (raw/ */raw/ *.data *.asm *.raw *.txt *.log) ignore the old
+# *.txt artifact name, so add staged nothing and commit --only died on an empty
+# pathspec. The transcript name is raw.csv (wi2c's visible .tsv/.csv convention).
 #SBATCH --partition=gen
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -82,12 +90,21 @@ done
 # Rerun protection, checked BEFORE anything is measured: a same-sha
 # re-submission fails loudly instead of redoing the wave. Delete the stale run
 # dir to force a re-run.
-RUN_DIR=$MEM_REPO/runs/wi2a-$CLASS-${ADM_SHA:0:7}
+# The .git check pins MEM_REPO to the checkout ROOT, the shape the self-commit
+# below requires: REL keeps the admiral/beat-standings prefix only when
+# RUN_DIR starts from the root. A subdir MEM_REPO is tonight's 7041868 defect.
+[[ -d $MEM_REPO/.git ]] || fail "MEM_REPO=$MEM_REPO is not the logbook checkout root (no .git)"
+RUN_DIR=$MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-${ADM_SHA:0:7}
 [[ ! -e $RUN_DIR ]] \
   || fail "$RUN_DIR exists; delete the stale run dir to force a re-run"
 mkdir -p "$RUN_DIR" || fail "mkdir $RUN_DIR"
 # From here on the whole output also lands in the committed artifact.
-exec > >(tee "$RUN_DIR/raw.txt") 2>&1
+# The transcript is a comma-separated record stream and the name must survive the
+# logbook's ignore rules (~/repos/memory/.gitignore: *.txt *.log *.data *.asm *.raw
+# are all ignored — the old *.txt artifact staged nothing and job 7041868's commit
+# --only found an empty pathspec). wi2c convention: the durable artifact carries a
+# visible .csv/.tsv name.
+exec > >(tee "$RUN_DIR/raw.csv") 2>&1
 
 # Cell id used in tags: "(1,256)" -> "1x256" (tags must stay comma-free for the
 # CSV rows — perf_lib warns about commas in tags).

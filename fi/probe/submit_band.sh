@@ -26,7 +26,10 @@
 #   ADM_SRC=<dir>     admiral checkout used for ref resolution/build
 #                     (default: <repo>/extern/admiral; initialized as needed)
 #   REPO=<dir>        fft_bench checkout (default: this script's repo)
-#   MEM_REPO=<dir>    logbook checkout the job self-commits into
+#   MEM_REPO=<dir>    logbook checkout ROOT the job self-commits into
+#                     (run dir lands under admiral/beat-standings/runs/;
+#                     a ROOT-relative REL pathspec needs the prefix — see the
+#                     7041868 note in band_counters.sbatch)
 #   RESULTS_DIR=<d>   where the slurm %j logs land (default fi/probe/results)
 #   JOBS=<n>          build width (default: full host width)
 set -uo pipefail
@@ -43,7 +46,7 @@ DEEP_CELLS=${DEEP_CELLS:-'(1,1024) (1,8192)'}
 BACKENDS=${BACKENDS:-'admiral,fftw3'}
 EVENTS=${EVENTS:-'base,flops,pipes,tlb,fill'}
 ADM_SRC=${ADM_SRC:-$REPO/extern/admiral}
-MEM_REPO=${MEM_REPO:-/mnt/home/mbarbone/repos/memory/admiral/beat-standings}
+MEM_REPO=${MEM_REPO:-/mnt/home/mbarbone/repos/memory}
 RESULTS_DIR=${RESULTS_DIR:-$SELF/results}
 CPM_CACHE=/mnt/home/mbarbone/cpm-cache
 JOBS=${JOBS:-$(nproc)}
@@ -88,10 +91,10 @@ if [[ -n ${ADM_REF:-} ]]; then
   fi
 fi
 BT=$REPO/build-wi2a-$CLASS-${ADM_SHA:0:7}
-git -C "$MEM_REPO" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
-  || note "MEM_REPO=$MEM_REPO is not a git work tree (the job self-commits there)"
+[[ -d $MEM_REPO/.git ]] || note "MEM_REPO=$MEM_REPO is not the logbook checkout root (no .git)"
+[[ -d $MEM_REPO/admiral/beat-standings/runs ]] \
+  || note "MEM_REPO=$MEM_REPO lacks admiral/beat-standings/runs (run dir lands there)"
 [[ -d $RESULTS_DIR || -w $(dirname "$RESULTS_DIR") ]] || note "cannot create RESULTS_DIR=$RESULTS_DIR"
-[[ -d $MEM_REPO/runs || -w $MEM_REPO ]] || note "cannot create run dir under $MEM_REPO"
 grep -q 'Rocky Linux release 9' /etc/redhat-release \
   || note "this host is not Rocky 9; binaries built here may not load on the nodes (submit.sh:64 guard applies to submit mode)"
 
@@ -110,7 +113,7 @@ echo "  backends:$BACKENDS (sleef descoped: loses to fftw3 at all six cells in t
 echo "  events:  $EVENTS"
 echo "  floor:   floor_cyc = mac_flops / (2 FLOPs x W=4 lanes) / 2 FMA pipes (znver2 law;"
 echo "           the SPR 'fma x 2' instruction-counting law is never imported)"
-echo "  results: job self-commits $MEM_REPO/runs/wi2a-$CLASS-$SHA7/ before the WI2_DONE marker"
+echo "  results: job self-commits $MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-$SHA7/ before the WI2_DONE marker"
 echo "  slurm:   $RESULTS_DIR/wi2a-band-$CLASS.slurm.%j.log"
 echo ""
 printf '  sbatch --constraint=%s&rocky9 -J wi2a-band-%s -o %s/wi2a-band-%s.slurm.%%j.log \\\n' \
@@ -223,4 +226,4 @@ jid=${out##* }
 echo ""
 log "submitted wi2a-band-$CLASS as job $jid at adm ${ADM_SHA:0:7}"
 log "watch:  squeue -u \$USER; markers WI2_DONE / WI2_FAIL in the slurm log"
-log "run dir: $MEM_REPO/runs/wi2a-$CLASS-${ADM_SHA:0:7} (self-committed by the job)"
+log "run dir: $MEM_REPO/admiral/beat-standings/runs/wi2a-$CLASS-${ADM_SHA:0:7} (self-committed by the job)"
