@@ -97,8 +97,16 @@ for arm in on off; do
         > "$WORK/b-$arm.build.log" 2>&1 \
     || { tail -30 "$WORK/b-$arm.build.log"; echo "GRANULE_AB_FAIL: build $arm"; exit 1; }
   # The driver includes src-side "granule_apply.hpp" (wi0a seam); -I"$SRC/src" reaches it.
+  # The OFF bench TU carries the knob define as well as the OFF library: the
+  # driver's cube engagement assert is `#ifndef ADM_GRANULE_ADMIT_OFF`, and the
+  # in-tree bench target receives the define through the library's interface
+  # -- this manual link does not. Without it the OFF binary exits 3 on the
+  # first cube cell (assert fires: no fast3d seat in an OFF build) the moment
+  # the run reaches 4x4x4; measured at znver2 on the wave-2 archive.
+  DEFS=-DADM_STATIC_DEFINE
+  [[ $arm == off ]] && DEFS="$DEFS -DADM_GRANULE_ADMIT_OFF"
   # shellcheck disable=SC2046
-  g++ -O3 -march="$ADM_ARCH" -std=c++20 -DADM_STATIC_DEFINE \
+  g++ -O3 -march="$ADM_ARCH" -std=c++20 $DEFS \
       -I"$WORK/b-$arm/src/generated/include" -I"$SRC/include" -I"$SRC/src" \
       $(grep -o '\-isystem [^ ]*' "$WORK/b-$arm/build.ninja" | sort -u | tr '\n' ' ') \
       "$DRIVER" "$WORK/b-$arm/src/libadmiral.a" "$WORK/b-$arm/src/libadmiral_codelets.a" \
