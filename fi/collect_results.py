@@ -40,7 +40,11 @@ cpu_data = {
 }
 
 def get_run_params(name: str):
-    return eval(re.findall(r'\<.*?\>', name)[0].strip('<>'))
+    """(n_per_dim, dim, prec) for one benchmark name. prec comes from the family
+    prefix: run_fft_f32<...> is f32, every other name is f64 (absent prefix => f64,
+    so every pre-spine json classifies exactly as before)."""
+    n_per_dim, dim = eval(re.findall(r'\<.*?\>', name)[0].strip('<>'))
+    return n_per_dim, dim, 'f32' if name.startswith('run_fft_f32') else 'f64'
 
 aggregate_data = {}
 for arch in arches:
@@ -57,61 +61,73 @@ for arch in arches:
         n_runs = len(data['benchmarks'])
         params = []
         for i, run in enumerate(data['benchmarks']):
-            # N_per_dim, dim, timing
+            # N_per_dim, dim, prec, timing
             params.append((*get_run_params(run['name']), run['real_time']))
 
         aggregate_data[arch][implementation] = params
 
-def plot_st_dim(dim: int):
+def plot_st_dim(dim: int, prec: str = 'f64'):
+    # f32 is a separate figure per (dim, arch): {dim}d_c2c_st_{arch}_f32.png. A dir whose
+    # ST arms carry zero f32 cells (every pre-spine run) emits no f32 figure at all, never
+    # an empty chart.
+    suffix = '' if prec == 'f64' else f'_{prec}'
     for arch in arches:
-        _, ax = plt.subplots(1, figsize=(12, 8))
+        series = []
         for impl, meas in aggregate_data[arch].items():
             if '-omp' in impl:
                 continue
-            params = list(zip(*filter(lambda param: param[1] == dim, meas)))
-            if not params:
-                continue
-            sizes, _, timings = params
-            if len(sizes):
-                sizes = [size ** dim for size in sizes]
-                # size is already the total gridpoint count; dt is us, so 1e3 gives ns
-                timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
-                plt.loglog(sizes, timings, label=impl, linewidth=3,
-                           color=lib_colors[impl.removesuffix('-omp')])
+            params = list(zip(*filter(lambda p: p[1:3] == (dim, prec), meas)))
+            if params:
+                series.append((impl, params))
+        if prec != 'f64' and not series:
+            continue
+        _, ax = plt.subplots(1, figsize=(12, 8))
+        for impl, (sizes, _, _, timings) in series:
+            sizes = [size ** dim for size in sizes]
+            # size is already the total gridpoint count; dt is us, so 1e3 gives ns
+            timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
+            plt.loglog(sizes, timings, label=impl, linewidth=3,
+                       color=lib_colors[impl.removesuffix('-omp')])
 
-        plt.title(f"{dim}D C2C on {cpu_data[arch]} (single-threaded)", fontdict=mainfont)
+        plt.title(f"{dim}D C2C on {cpu_data[arch]} "
+                  f"(single-threaded{'' if prec == 'f64' else ', ' + prec})", fontdict=mainfont)
         plt.xlabel("Gridpoints", fontdict=mainfont)
         plt.ylabel("Time per gridpoint (ns)", fontdict=mainfont)
         ax.tick_params(labelsize=14, width=2)
 
         plt.legend(prop={'size':18})
-        plt.savefig(f'{dim}d_c2c_st_{arch}.png', )
+        plt.savefig(f'{dim}d_c2c_st_{arch}{suffix}.png', )
 
-def plot_mt_dim(dim: int):
+def plot_mt_dim(dim: int, prec: str = 'f64'):
+    suffix = '' if prec == 'f64' else f'_{prec}'
     for arch in arches:
-        _, ax = plt.subplots(1, figsize=(12, 8))
+        series = []
         for impl, meas in aggregate_data[arch].items():
             if '-omp' not in impl:
                 continue
-            params = list(zip(*filter(lambda param: param[1] == dim, meas)))
-            if not params:
-                continue
-            sizes, _, timings = params
-            if len(sizes):
-                sizes = [size ** dim for size in sizes]
-                # size is already the total gridpoint count; dt is us, so 1e3 gives ns
-                timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
-                plt.loglog(sizes, timings, label=impl, linewidth=3,
-                           color=lib_colors[impl.removesuffix('-omp')])
-        plt.title(f"{dim}D C2C on {cpu_data[arch]} (multi-threaded)", fontdict=mainfont)
+            params = list(zip(*filter(lambda p: p[1:3] == (dim, prec), meas)))
+            if params:
+                series.append((impl, params))
+        if prec != 'f64' and not series:
+            continue
+        _, ax = plt.subplots(1, figsize=(12, 8))
+        for impl, (sizes, _, _, timings) in series:
+            sizes = [size ** dim for size in sizes]
+            # size is already the total gridpoint count; dt is us, so 1e3 gives ns
+            timings = [1000 * dt / size for dt, size in zip(timings, sizes)]
+            plt.loglog(sizes, timings, label=impl, linewidth=3,
+                       color=lib_colors[impl.removesuffix('-omp')])
+        plt.title(f"{dim}D C2C on {cpu_data[arch]} "
+                  f"(multi-threaded{'' if prec == 'f64' else ', ' + prec})", fontdict=mainfont)
         plt.xlabel("Gridpoints", fontdict=mainfont)
         plt.ylabel("Time per gridpoint (ns)", fontdict=mainfont)
         ax.tick_params(labelsize=14, width=2)
 
         plt.legend(prop={'size':18})
-        plt.savefig(f'{dim}d_c2c_mt_{arch}.png', )
+        plt.savefig(f'{dim}d_c2c_mt_{arch}{suffix}.png', )
 
 
 for dim in range(1, 4):
-    plot_st_dim(dim)
-    plot_mt_dim(dim)
+    for prec in ('f64', 'f32'):
+        plot_st_dim(dim, prec)
+        plot_mt_dim(dim, prec)

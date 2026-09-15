@@ -15,8 +15,23 @@ ARCHES = ['rome', 'icelake', 'genoa']
 LIBS = ['mkl', 'fftw3', 'ducc', 'sleef', 'pocket', 'kiss']
 
 
+def cell_key(name):
+    """(rank, n_per_dim, prec) for one benchmark name. prec comes from the family
+    prefix: run_fft_f32<...> is f32, every other name is f64 (absent prefix => f64,
+    so every pre-spine json keys exactly as before). Without prec in the key an f32
+    cell silently overwrites its f64 twin."""
+    n_per_dim, rank = eval(re.findall(r'<(.*?)>', name)[0])
+    return rank, n_per_dim, 'f32' if name.startswith('run_fft_f32') else 'f64'
+
+
+def show(cell):
+    """f64 cells print as the pre-spine (rank, n) pair; only non-f64 cells carry prec."""
+    rank, n, prec = cell
+    return str((rank, n)) if prec == 'f64' else str(cell)
+
+
 def cells(path):
-    """{(rank, n_per_dim): real_time} for one benchmark json, or {} if absent."""
+    """{(rank, n_per_dim, prec): real_time} for one benchmark json, or {} if absent."""
     try:
         runs = json.loads(Path(path).read_text())['benchmarks']
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
@@ -25,8 +40,7 @@ def cells(path):
     for b in runs:
         if b.get('run_type') == 'aggregate':
             continue
-        n, rank = eval(re.findall(r'<(.*?)>', b['name'])[0])
-        out[(rank, n)] = b['real_time']
+        out[cell_key(b['name'])] = b['real_time']
     return out
 
 
@@ -78,7 +92,7 @@ for arch in ARCHES:
     floors[arch] = r
     worst = max(shared, key=lambda c: abs(r[c] - 1))
     print(f'  {arch:9} geomean {geomean(r.values()):.4f} over {len(shared)} cells; '
-          f'worst {worst} {r[worst]:.3f}')
+          f'worst {show(worst)} {r[worst]:.3f}')
 
 if len(sys.argv) > 1:
     base = sys.argv[1]
@@ -93,7 +107,7 @@ if len(sys.argv) > 1:
         worst = max(zip(r, shared))
         best = min(zip(r, shared))
         print(f'  {arch:9} geomean {geomean(r):.3f} over {len(r)} cells; '
-              f'best {best[1]} {best[0]:.3f}; worst {worst[1]} {worst[0]:.3f}')
+              f'best {show(best[1])} {best[0]:.3f}; worst {show(worst[1])} {worst[0]:.3f}')
         fl = floors.get(arch, {})
         movers = [c for c in shared if abs(new[c] / old[c] - 1) > 0.05]
         if fl and movers:
@@ -106,5 +120,5 @@ if len(sys.argv) > 1:
                 else:
                     verdict = ('MOVE' if abs(new[c] / old[c] - 1) > abs(f - 1) + 0.02
                                else 'wobble')
-                print(f'      {str(c):14} {new[c] / old[c]:.3f}   '
+                print(f'      {show(c):14} {new[c] / old[c]:.3f}   '
                       f'{f if f is not None else float("nan"):.3f}   {verdict}')
