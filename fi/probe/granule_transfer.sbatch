@@ -96,9 +96,10 @@ for arm in on off; do
   cmake --build "$WORK/b-$arm" -j"${SLURM_CPUS_PER_TASK:-16}" --target admiral_static \
         > "$WORK/b-$arm.build.log" 2>&1 \
     || { tail -30 "$WORK/b-$arm.build.log"; echo "GRANULE_AB_FAIL: build $arm"; exit 1; }
+  # The driver includes src-side "granule_apply.hpp" (wi0a seam); -I"$SRC/src" reaches it.
   # shellcheck disable=SC2046
   g++ -O3 -march="$ADM_ARCH" -std=c++20 -DADM_STATIC_DEFINE \
-      -I"$WORK/b-$arm/src/generated/include" -I"$SRC/include" \
+      -I"$WORK/b-$arm/src/generated/include" -I"$SRC/include" -I"$SRC/src" \
       $(grep -o '\-isystem [^ ]*' "$WORK/b-$arm/build.ninja" | sort -u | tr '\n' ' ') \
       "$DRIVER" "$WORK/b-$arm/src/libadmiral.a" "$WORK/b-$arm/src/libadmiral_codelets.a" \
       -pthread -o "$WORK/granule_ab_$arm" \
@@ -163,11 +164,12 @@ module list 2>&1
 printf 'class\tcell\tprec\tround\trep\tarm\tns\n' > "$TSV"
 
 run_one() {  # $1=arm $2=round $3=rep
-  local arm=$1 round=$2 rep=$3 raw
+  local arm=$1 round=$2 rep=$3 raw st
   raw=$WORK/raw/r$(printf %02d "$round")_${arm}${rep}.txt
   taskset -c "$MEAS" "$WORK/granule_ab_$arm" > "$raw" 2>&1 \
-    || { cp "$raw" "$STEM.failed.txt"
-         echo "GRANULE_AB_FAIL: driver $arm exited $? (round $round rep $rep); raw copied to $STEM.failed.txt"
+    || { st=$?
+         cp "$raw" "$STEM.failed.txt"
+         echo "GRANULE_AB_FAIL: driver $arm exited $st (round $round rep $rep); raw copied to $STEM.failed.txt"
          exit 1; }
   python3 "$SLURM_SUBMIT_DIR/canon_rows.py" "$CLASS" "$round" "$rep" "$arm" "$raw" "$TSV" \
     || { cp "$raw" "$STEM.failed.txt"
