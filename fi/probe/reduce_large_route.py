@@ -14,8 +14,9 @@ threaded crossover per nthreads (budget reading at nt in {1,4,32} called out),
 the stream-arm onset against the host's L3, and the auto-election agreement.
 Every derived line ends in a verdict column: within-noise-kill or
 move-needed, against the SHIPPED constants below (a COPY of
-include/admiral/detail/four_step_large.hpp:398-407 and the :38 comment
-bracket; keep in sync — the probe never reads the headers itself).
+include/admiral/detail/four_step_large.hpp:421-437,449-450 and the :38
+comment bracket at master f493eb2; keep in sync — the probe never reads
+the headers itself).
 
 Noise rule: per (prec,n,route) the repetitions' min_ns spread ((max-min)/min)
 over the rotated rounds; the leg's noise floor is the median spread. A cell is
@@ -35,14 +36,22 @@ import re
 import statistics
 import sys
 
-# --- shipped constants (COPY of four_step_large.hpp:398-407; keep in sync) ---
+# --- shipped constants (COPY of four_step_large.hpp:421-437,449-450 at master ---
+# --- f493eb2; keep in sync) ---
 MIB = 1 << 20
 KIB = 1 << 10
-SHIP_SERIAL_F64 = 12 * MIB            # kLargeRouteSerialF64Bytes
-SHIP_SERIAL_F32 = 16 * MIB - 1        # kLargeRouteSerialF32Bytes
-SHIP_SERIAL_F32_MAX = 32 * MIB        # kLargeRouteSerialF32MaxBytes
-SHIP_THREAD_BUDGET = 2 * MIB          # kLargeRouteThreadedByteBudget
-SHIP_THREAD_FLOOR = 512 * KIB         # kLargeRouteThreadedFloorBytes
+SHIP_SERIAL_F64 = 12 * MIB            # kLargeRouteSerialF64Bytes (probe-ladder prior)
+SHIP_SERIAL_F32 = 16 * MIB - 1        # kLargeRouteSerialF32Bytes (probe-ladder prior)
+# The serial f32 window cap (kLargeRouteSerialF32MaxBytes) is DELETED at master:
+# four_step won at every rung past it on every class through 256 MiB.
+SHIP_THREAD_FLOOR_F64 = 370727        # kLargeRouteThreadFloorF64Bytes
+SHIP_THREAD_FLOOR_F32 = 185363        # kLargeRouteThreadFloorF32Bytes
+SHIP_THREAD_KNEE_F64 = 32             # kLargeRouteThreadKneeF64Nt
+SHIP_THREAD_KNEE_F32 = 8              # kLargeRouteThreadKneeF32Nt
+SHIP_THREAD_CAP = 1482910             # kLargeRouteThreadCapBytes (shared)
+# Pool width P per class (fi/<class>.sbatch node width): the threaded law's
+# interpolation anchor. Unknown class -> 0 -> the law's 2*knee span guard.
+POOL_OF = {"rome": 128, "icelake": 64, "genoa": 96}
 STREAM_MULT = 2.0                     # kFourStepStreamL3Mult (:38)
 # :38 comment: the SPR crossover bracket was 1.36x..2.71x of L3, 2 = geo-mid.
 STREAM_BRACKET = (1.36, 2.71)
@@ -52,10 +61,19 @@ COLS = ("prec", "n", "bytes", "nthreads", "route_forced", "route_elected",
         "stream_arm_elected", "reps", "min_ns", "guard")
 
 
-def ship_thread(nt):
-    # large_route_threaded_bytes(nt) = max(floor, budget/nt) - 1; compare at
-    # the whole-byte value (the -1 is below any rung resolution).
-    return max(SHIP_THREAD_FLOOR, SHIP_THREAD_BUDGET // nt)
+def ship_thread(prec, nt, pool_width):
+    # large_route_threaded_bytes(elem_bytes, nthreads, pool_width) at master:
+    # f32 nt=2 pins the cap; an element-keyed floor holds flat to the knee,
+    # then a linear rise to the shared cap anchored at the pool width.
+    if prec == "f32" and nt == 2:
+        return SHIP_THREAD_CAP
+    knee = SHIP_THREAD_KNEE_F64 if prec == "f64" else SHIP_THREAD_KNEE_F32
+    floor = SHIP_THREAD_FLOOR_F64 if prec == "f64" else SHIP_THREAD_FLOOR_F32
+    if nt <= knee:
+        return floor
+    span = max(pool_width, 2 * knee) - knee
+    return min(floor + (SHIP_THREAD_CAP - floor) * (nt - knee) // span,
+               SHIP_THREAD_CAP)
 
 
 def mib(b):
@@ -198,6 +216,8 @@ def reduce_class(stem, label):
     print("=" * 78)
     print("== %s (%s)" % (label, os.path.basename(stem)))
     print("=" * 78)
+    mc = re.match(r"(?:.*/)?wi2c-([a-z0-9]+)-", stem)
+    pool_width = POOL_OF.get(mc.group(1), 0) if mc else 0
     paths = {leg: stem + "." + leg + ".tsv" for leg in ("serial", "thread", "tlb")}
     env = stem + ".env.md"
     for leg, p in paths.items():
@@ -252,11 +272,12 @@ def reduce_class(stem, label):
             if up is None:
                 still = "four_step still wins at the ladder top (%s)" % mib(c32[-1][1])
                 print("    f32 window UPPER edge: none below the top — %s" % still)
-                print("      move-needed  [shipped window top %s; the measured window"
-                      " stays open past %s]" % (mib(SHIP_SERIAL_F32_MAX), mib(c32[-1][1])))
+                print("      (the serial f32 window cap is deleted at master: an"
+                      " open window is the law's own reading)")
             else:
-                print("    f32 window UPPER edge [%s, %s]  %s"
-                      % (mib(up[0]), mib(up[1]), verdict(up, SHIP_SERIAL_F32_MAX)))
+                print("    f32 window UPPER edge [%s, %s] — master ships NO cap;"
+                      " a closed window here is a note for the next probe-ladder"
+                      " re-fit, not a move-needed" % (mib(up[0]), mib(up[1])))
         # stream-arm onset (the kFourStepStreamL3Mult re-derivation)
         for prec in ("f64", "f32"):
             srows = [r for r in rows if r["prec"] == prec
@@ -305,9 +326,12 @@ def reduce_class(stem, label):
         rows = data["thread"]
         nts = sorted({r["nthreads"] for r in rows})
         print("\n  THREADED raw-by-crossover:")
-        print("  per-(nt,prec): bytes interval of the dif->four_step crossover,")
-        print("  budget reading = interval geo-mid x nt; shipped = max(%s, %s/nt);"
-              % (mib(SHIP_THREAD_FLOOR), mib(SHIP_THREAD_BUDGET)))
+        print("  per-(nt,prec): bytes interval of the dif->four_step crossover;")
+        print("  shipped = master's floor/knee/cap law at pool_width=%d"
+              " (floor f64 %s f32 %s, knee f64 %d f32 %d, cap %s;"
+              " f32 nt=2 pins the cap)"
+              % (pool_width, mib(SHIP_THREAD_FLOOR_F64), mib(SHIP_THREAD_FLOOR_F32),
+                 SHIP_THREAD_KNEE_F64, SHIP_THREAD_KNEE_F32, mib(SHIP_THREAD_CAP)))
         print("  the tie band is PER-NT (2x that nt's median same-arm spread).")
         for nt in nts:
             sub = [r for r in rows if r["nthreads"] == nt]
@@ -327,8 +351,10 @@ def reduce_class(stem, label):
                     gm = int((max(lo, 1) * hi) ** 0.5)
                     sug = "  budget~%s (geo-mid %s x nt)" % (mib(gm * nt), mib(gm))
                 print("    nt=%-3d %s edge [%s, %s] shipped %s  %s%s%s  (floor %.4f, %d cells)"
-                      % (nt, prec, mib(lo), mib(hi), mib(ship_thread(nt)),
-                         verdict((lo, hi), ship_thread(nt)), sug, mark, fl, len(cells)))
+                      % (nt, prec, mib(lo), mib(hi),
+                         mib(ship_thread(prec, nt, pool_width)),
+                         verdict((lo, hi), ship_thread(prec, nt, pool_width)),
+                         sug, mark, fl, len(cells)))
                 for n, b, d, f, v in cells:
                     print("        %10s dif=%14.3f four_step=%14.3f fs/dif=%.4f %s"
                           % (mib(b), d, f, f / d, v))

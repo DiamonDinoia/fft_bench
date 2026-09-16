@@ -8,7 +8,7 @@
 #
 #   fi/probe/submit_large_route.sh [--check]
 #
-#   ADM_REF=<ref>      yafft revision to probe (default team/integration tip;
+#   ADM_REF=<ref>      yafft revision to probe (default master tip;
 #                      resolved to a full sha HERE, exported, and stamped into
 #                      every output filename; the manager records the exact
 #                      integrated sha in the submit note)
@@ -43,7 +43,7 @@ CLASSES=(rome icelake genoa)
 declare -A ARCH_OF=([rome]=znver2 [icelake]=icelake-server [genoa]=znver4)
 declare -A CAP_OF=([rome]=128 [icelake]=64 [genoa]=96)
 YAFFT_SRC=${YAFFT_SRC:-/mnt/home/mbarbone/repos/yafft}
-ADM_REF=${ADM_REF:-team/integration}
+ADM_REF=${ADM_REF:-master}
 RESULTS_DIR=${RESULTS_DIR:-$SELF/results}
 MEM_REPO=${MEM_REPO:-/mnt/home/mbarbone/repos/memory}
 WI2C_CPUS=${WI2C_CPUS:-2}
@@ -71,7 +71,7 @@ if [[ -n ${ADM_SHA:-} ]]; then
   git -C "$YAFFT_SRC" cat-file -e "$ADM_SHA:benchmark/bench_large_route.cpp" 2>/dev/null \
     || pend "benchmark/bench_large_route.cpp absent at ${ADM_SHA:0:7} ($ADM_REF): the driver lands from the WI-2c peer lane; submission blocks until ADM_REF points at a tree carrying it"
   git -C "$YAFFT_SRC" show "$ADM_SHA:include/admiral/detail/four_step_large.hpp" 2>/dev/null \
-    | grep -q 'kLargeRouteThreadedByteBudget' \
+    | grep -qE 'kLargeRoute(ThreadedByteBudget|ThreadCapBytes)' \
     || note "kLargeRoute* constants absent in four_step_large.hpp at ${ADM_SHA:0:7} (the WI measures those lines)"
   git -C "$YAFFT_SRC" show "$ADM_SHA:include/admiral/detail/four_step_large.hpp" 2>/dev/null \
     | grep -q 'kFourStepStreamL3Mult' \

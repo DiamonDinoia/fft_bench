@@ -5,7 +5,7 @@
 #
 #   fi/probe/submit_probes.sh [--check]
 #
-#   ADM_REF=<ref>    yafft revision to probe (default team/integration tip;
+#   ADM_REF=<ref>    yafft revision to probe (default master tip;
 #                    resolved to a full sha here, exported, and stamped into
 #                    every output filename; the manager records the exact
 #                    integrated sha in the submit note)
@@ -32,7 +32,7 @@ declare -A ARCH_OF=([rome]=znver2 [icelake]=icelake-server [genoa]=znver4)
 # Full logical-cpu width of each node class (fi/<class>.sbatch); the QOS lever.
 declare -A CPUS_OF=([rome]=128 [icelake]=64 [genoa]=96)
 YAFFT_SRC=${YAFFT_SRC:-/mnt/home/mbarbone/repos/yafft}
-ADM_REF=${ADM_REF:-team/integration}
+ADM_REF=${ADM_REF:-master}
 RESULTS_DIR=${RESULTS_DIR:-$SELF/results}
 CPM_CACHE=/mnt/home/mbarbone/cpm-cache
 
