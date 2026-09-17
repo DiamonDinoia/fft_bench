@@ -76,7 +76,7 @@ def plot_st_dim(dim: int, prec: str = 'f64'):
         for impl, meas in aggregate_data[arch].items():
             if '-omp' in impl:
                 continue
-            params = list(zip(*filter(lambda p: p[1:3] == (dim, prec), meas)))
+            params = list(zip(*sorted(filter(lambda p: p[1:3] == (dim, prec), meas))))
             if params:
                 series.append((impl, params))
         if prec != 'f64' and not series:
@@ -105,7 +105,7 @@ def plot_mt_dim(dim: int, prec: str = 'f64'):
         for impl, meas in aggregate_data[arch].items():
             if '-omp' not in impl:
                 continue
-            params = list(zip(*filter(lambda p: p[1:3] == (dim, prec), meas)))
+            params = list(zip(*sorted(filter(lambda p: p[1:3] == (dim, prec), meas))))
             if params:
                 series.append((impl, params))
         if prec != 'f64' and not series:
