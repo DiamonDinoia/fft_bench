@@ -66,6 +66,12 @@ for arch in arches:
 
         aggregate_data[arch][implementation] = params
 
+def cells(meas, dim: int, prec: str):
+    """Cells of one (dim, prec) family, ascending in size. Non-power-of-two granule cells
+    stay out of the charts: they cost less per gridpoint than their power-of-two neighbours,
+    so one polyline over both families zigzags between two levels."""
+    return sorted(p for p in meas if p[1:3] == (dim, prec) and not p[0] & (p[0] - 1))
+
 def plot_st_dim(dim: int, prec: str = 'f64'):
     # f32 is a separate figure per (dim, arch): {dim}d_c2c_st_{arch}_f32.png. A dir whose
     # ST arms carry zero f32 cells (every pre-spine run) emits no f32 figure at all, never
@@ -76,7 +82,7 @@ def plot_st_dim(dim: int, prec: str = 'f64'):
         for impl, meas in aggregate_data[arch].items():
             if '-omp' in impl:
                 continue
-            params = list(zip(*sorted(filter(lambda p: p[1:3] == (dim, prec), meas))))
+            params = list(zip(*cells(meas, dim, prec)))
             if params:
                 series.append((impl, params))
         if prec != 'f64' and not series:
@@ -105,7 +111,7 @@ def plot_mt_dim(dim: int, prec: str = 'f64'):
         for impl, meas in aggregate_data[arch].items():
             if '-omp' not in impl:
                 continue
-            params = list(zip(*sorted(filter(lambda p: p[1:3] == (dim, prec), meas))))
+            params = list(zip(*cells(meas, dim, prec)))
             if params:
                 series.append((impl, params))
         if prec != 'f64' and not series:
