@@ -124,6 +124,11 @@ void initialize_arrays(int N, T *in, T *out) {
 // Every MT chart carrying mkl-omp plotted that artifact, so this arm drives DFTI
 // directly: one descriptor, thread count from OMP_NUM_THREADS via
 // omp_get_max_threads (the contract the other MT arms follow).
+//
+// DFTI_THREAD_LIMIT caps MKL's internal threading, which is the count this arm means.
+// DFTI_NUMBER_OF_USER_THREADS declares user threads sharing one descriptor and, on
+// AMD, leaves the internal path serial while Intel threads either way; it must not
+// stand in for the limit here (fi/probe/mkl_thread_probe.cpp).
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
     const int N = std::pow(N_per_dim, dim);
@@ -142,7 +147,7 @@ static void run_fft(benchmark::State &state) {
         DftiCreateDescriptor(&p, DFTI_DOUBLE, DFTI_COMPLEX, 1, n[0]);
     else
         DftiCreateDescriptor(&p, DFTI_DOUBLE, DFTI_COMPLEX, dim, n);
-    DftiSetValue(p, DFTI_NUMBER_OF_USER_THREADS, omp_get_max_threads());
+    DftiSetValue(p, DFTI_THREAD_LIMIT, omp_get_max_threads());
     DftiSetValue(p, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
     if (DftiCommitDescriptor(p) != 0) std::abort();
 
@@ -170,7 +175,7 @@ static void run_fft_f32(benchmark::State &state) {
         DftiCreateDescriptor(&p, DFTI_SINGLE, DFTI_COMPLEX, 1, n[0]);
     else
         DftiCreateDescriptor(&p, DFTI_SINGLE, DFTI_COMPLEX, dim, n);
-    DftiSetValue(p, DFTI_NUMBER_OF_USER_THREADS, omp_get_max_threads());
+    DftiSetValue(p, DFTI_THREAD_LIMIT, omp_get_max_threads());
     DftiSetValue(p, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
     if (DftiCommitDescriptor(p) != 0) std::abort();
 

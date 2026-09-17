@@ -65,6 +65,17 @@ no mkl-omp series predating this fix is usable. The mkl_omp arm now drives DFTI
 natively; per MKL 2026.0, a threaded dim-1 descriptor must take the scalar length form
 (the array-length form of `DftiCreateDescriptor` at dim 1 segfaults `commit`).
 
+Known issue (found and fixed 2026-09-16, after the sweep below): **`DFTI_NUMBER_OF_USER_THREADS`
+leaves MKL serial on AMD.** That parameter declares how many user threads share one descriptor;
+`DFTI_THREAD_LIMIT` is the internal thread count. With the declaration in place, rome and genoa
+measured the single-threaded time at every 1-D and 2-D size (ST/MT ratio 1.00 at 18 of 18 1-D
+sizes on both) while icelake threaded normally, from one build and one batch shape. Probed per
+knob against a per-cell serial reference (`fi/probe/mkl_thread_probe.cpp`, 1-D 2^20):
+rome 0.99x with the declaration against 6.03x without it, genoa 0.98x against 22.99x, icelake
+25.02x either way; unchanged under `MKL_THREADING_LAYER=GNU` and `=INTEL`. The arm now sets
+`DFTI_THREAD_LIMIT`. Every mkl-omp number for rome and genoa in the 2026-09-16 sweep is
+therefore invalid, and the multi-threaded charts below still carry it until the next sweep.
+
 Session caveat (2026-09-01 measurements): the genoa round ran on a uniformly slower
 node (every library moved; admiral least of all), which flatters admiral's MT ratios
 on genoa this round. The rankings are the stable content.
@@ -79,8 +90,8 @@ multi-threaded plots carry mkl, fftw3, ducc, sleef and admiral.
 ![](fi/1d_c2c_mt_genoa.png)
 
 ### 2D
-Note the AMD measurements are not in error. This really happens consistently. MKL is very
-unhappy with more than 16 threads for these particular sizes in 2D.
+The AMD mkl-omp curves below are the serial times, not a threading pathology: see the
+`DFTI_NUMBER_OF_USER_THREADS` entry above. They are redrawn with the next sweep.
 
 ![](fi/2d_c2c_mt_icelake.png)
 ![](fi/2d_c2c_mt_rome.png)
