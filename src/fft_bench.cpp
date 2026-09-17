@@ -16,6 +16,9 @@
 
 #ifdef FFT_BENCH_MKL
 #include <fftw/fftw3_mkl.h>
+#ifdef FFT_BENCH_OMP
+#include <mkl.h>
+#endif
 #elif FFT_BENCH_FFTW3
 #include <fftw3.h>
 #elif FFT_BENCH_SLEEF
@@ -112,7 +115,73 @@ void initialize_arrays(int N, T *in, T *out) {
 #define FFT_BENCH_F32
 #endif
 
-#if defined(FFT_BENCH_MKL) | defined(FFT_BENCH_FFTW3)
+#if defined(FFT_BENCH_MKL) && defined(FFT_BENCH_OMP)
+// The threaded MKL arm cannot go through the fftw3-compat wrapper: MKL's wrapper
+// execute path is pathology-grade when threaded — 1-D f64 8192 x 64T timed at
+// 144 ms/call on icelake where native DftiComputeForward with
+// DFTI_NUMBER_OF_USER_THREADS reads 17.6 us at 32T (2-D 64^2: 64.5 ms vs 4.7 us;
+// measured 2026-09-16, SPR/gcc 14.2, threads 2..32, both OMP runtimes probed).
+// Every MT chart carrying mkl-omp plotted that artifact, so this arm drives DFTI
+// directly: one descriptor, thread count from OMP_NUM_THREADS via
+// omp_get_max_threads (the contract the other MT arms follow).
+template <int N_per_dim, int dim>
+static void run_fft(benchmark::State &state) {
+    const int N = std::pow(N_per_dim, dim);
+    double *in = (double *)bench_alloc(2 * N * sizeof(double));
+    double *out = (double *)bench_alloc(2 * N * sizeof(double));
+    initialize_arrays(N, in, out);
+
+    MKL_LONG n[dim];
+    for (int i = 0; i < dim; ++i)
+        n[i] = N_per_dim;
+
+    DFTI_DESCRIPTOR_HANDLE p = nullptr;
+    // dim==1 takes the scalar length form: the array form segfaults inside
+    // DftiCommitDescriptor's threaded path (MKL 2026.0, probed 2026-09-16).
+    if (dim == 1)
+        DftiCreateDescriptor(&p, DFTI_DOUBLE, DFTI_COMPLEX, 1, n[0]);
+    else
+        DftiCreateDescriptor(&p, DFTI_DOUBLE, DFTI_COMPLEX, dim, n);
+    DftiSetValue(p, DFTI_NUMBER_OF_USER_THREADS, omp_get_max_threads());
+    DftiSetValue(p, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    if (DftiCommitDescriptor(p) != 0) std::abort();
+
+    for (auto _ : state)
+        DftiComputeForward(p, in, out);
+
+    DftiFreeDescriptor(&p);
+    std::free(in);
+    std::free(out);
+}
+
+template <int N_per_dim, int dim>
+static void run_fft_f32(benchmark::State &state) {
+    const int N = std::pow(N_per_dim, dim);
+    float *in = (float *)bench_alloc(2 * N * sizeof(float));
+    float *out = (float *)bench_alloc(2 * N * sizeof(float));
+    initialize_arrays(N, in, out);
+
+    MKL_LONG n[dim];
+    for (int i = 0; i < dim; ++i)
+        n[i] = N_per_dim;
+
+    DFTI_DESCRIPTOR_HANDLE p = nullptr;
+    if (dim == 1)
+        DftiCreateDescriptor(&p, DFTI_SINGLE, DFTI_COMPLEX, 1, n[0]);
+    else
+        DftiCreateDescriptor(&p, DFTI_SINGLE, DFTI_COMPLEX, dim, n);
+    DftiSetValue(p, DFTI_NUMBER_OF_USER_THREADS, omp_get_max_threads());
+    DftiSetValue(p, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    if (DftiCommitDescriptor(p) != 0) std::abort();
+
+    for (auto _ : state)
+        DftiComputeForward(p, in, out);
+
+    DftiFreeDescriptor(&p);
+    std::free(in);
+    std::free(out);
+}
+#elif defined(FFT_BENCH_MKL) || defined(FFT_BENCH_FFTW3)
 template <int N_per_dim, int dim>
 static void run_fft(benchmark::State &state) {
     const int N = std::pow(N_per_dim, dim);

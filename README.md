@@ -3,7 +3,7 @@ FFTW3 run in FFTW_MEASURE mode. FFTW_PATIENT is death, and I wanted to give it a
 
 | MKL      | FFTW   | KISS             | Pocket   | DUCC              | Sleef         | Admiral |
 |----------|--------|------------------|----------|-------------------|---------------|---------|
-| 2026.0.0 | 3.3.11 | v131-101-ge5e3fac| 81d171a6 | 0.41.1-72-g9919ab6| 3.9.0-41-g7623d6c | 683a697 |
+| 2026.0.0 | 3.3.11 | v131-101-ge5e3fac| 81d171a6 | 0.41.1-72-g9919ab6| 3.9.0-41-g7623d6c | b2bf2d3 |
 
 FFTW3, MKL and gcc come from the cluster's Lmod modules (`gcc/14.3.0 fftw/3.3.11 intel-oneapi-mkl/2026.0.0`); the module's FFTW3 carries the
 OpenMP threading library, which `fftw3_omp_bench` links. Machines: Intel Xeon Platinum 8362 (icelake), AMD EPYC 7742 (rome), AMD EPYC 9474F (genoa).
@@ -51,6 +51,19 @@ planning at 96 threads burns 99% of a single core for hours (one transform size
 clocked past two hours of pure planning) while the same block completes in 13-24 min
 on icelake and rome. `fftw3_omp` is therefore omitted from the genoa runs; FFTW3
 OpenMP results are unaffected on the other two machines.
+
+Known issue (fixed 2026-09-16): **MKL's FFTW3-compatibility wrapper is broken when
+threaded.** Measured through `fftw_plan_with_nthreads` + `fftw_execute`, every mkl cell
+past a point-count gate (1-D: 8192; both precisions, all three machines, several sweeps)
+paid a per-CALL overhead of ms-to-~100 ms scale: 144 ms/call at 1-D f64 8192 on icelake
+where the same transform through MKL's native DFTI reads 17.6 µs at 32 threads; 2-D 64²
+f64 mkl-omp: 64.5 ms vs native 4.7 µs. It is a wrapper defect, not MKL's FFT (native
+`DftiComputeForward` is healthy at every probed size/thread count), and not an
+OpenMP-runtime interaction (reproduces under iomp5 and gomp, under ACTIVE spin and
+immediate sleep). Sweeps before 2026-09-16 drew mkl-omp curves from that artifact and
+no mkl-omp series predating this fix is usable. The mkl_omp arm now drives DFTI
+natively; per MKL 2026.0, a threaded dim-1 descriptor must take the scalar length form
+(the array-length form of `DftiCreateDescriptor` at dim 1 segfaults `commit`).
 
 Session caveat (2026-09-01 measurements): the genoa round ran on a uniformly slower
 node (every library moved; admiral least of all), which flatters admiral's MT ratios
